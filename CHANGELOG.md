@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/wsehl/bstack/compare/v0.2.1...v0.2.2) (2026-08-21)
+
+
+### Bug Fixes
+
+* **sync:** rebuild stacks when inserting pull requests ([717a6fc](https://github.com/wsehl/bstack/commit/717a6fcfbb45090037737bc1b9038a4b0968d164))
+
 ## [0.2.1](https://github.com/wsehl/bstack/compare/v0.2.0...v0.2.1) (2026-08-21)
 
 
