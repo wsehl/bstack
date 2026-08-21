@@ -23,7 +23,7 @@
   "scripts": {
     "build": "tsdown",
     "format": "oxfmt --write .",
-    "format:check": "oxfmt --check .",
+    "format-check": "oxfmt --check .",
     "lint": "oxlint .",
     "prepack": "pnpm run build",
     "prepublishOnly": "pnpm run type-check && pnpm test",

@@ -18,7 +18,7 @@ jobs:
         with:
           runtime: node@24
       - run: pnpm run lint
-      - run: pnpm run format:check
+      - run: pnpm run format-check
       - run: pnpm run type-check
       - run: pnpm run build
       - run: pnpm run test
