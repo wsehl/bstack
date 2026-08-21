@@ -20,6 +20,50 @@ afterEach(() => {
 });
 
 describe("stack sync", () => {
+  test("inserts a new change below submitted pull requests", () => {
+    const fixture = createRepository();
+    const github = new FakeGitHub();
+    const reporter = new RecordingReporter();
+    const repository = new GitRepository(
+      fixture.worktree,
+      new NodeCommandRunner(),
+    );
+    const options = {
+      base: "main",
+      remote: "origin",
+      open: false,
+      dryRun: false,
+      reporter,
+    } as const;
+
+    const submitted = syncStack(repository, github, options);
+    git(fixture.worktree, "switch", "--detach", "main");
+    writeFileSync(join(fixture.worktree, "inserted.txt"), "inserted\n");
+    git(fixture.worktree, "add", "inserted.txt");
+    git(fixture.worktree, "commit", "-m", "Inserted change");
+    git(
+      fixture.worktree,
+      "cherry-pick",
+      ...submitted.changes.map((change) => change.oid),
+    );
+    git(fixture.worktree, "branch", "-f", "feature", "HEAD");
+    git(fixture.worktree, "switch", "feature");
+
+    const updated = syncStack(repository, github, options);
+
+    expect(updated.changes).toHaveLength(3);
+    expect(updated.changes[0]!.subject).toBe("Inserted change");
+    expect(updated.changes.slice(1).map((change) => change.id)).toEqual(
+      submitted.changes.map((change) => change.id),
+    );
+    expect(
+      updated.changes.slice(1).map((change) => change.pullRequest?.number),
+    ).toEqual(submitted.changes.map((change) => change.pullRequest?.number));
+    expect(github.linkCalls.at(-1)).toEqual(
+      updated.changes.map((change) => change.remoteBranch),
+    );
+  });
+
   test("publishes remote-only branches and keeps PR identity after amend", () => {
     const fixture = createRepository();
     const github = new FakeGitHub();

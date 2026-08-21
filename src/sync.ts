@@ -194,6 +194,10 @@ function analyzeEvolution(
   const previousIds = previous.changes.map((change) => change.id);
   const currentIds = changes.map((change) => change.id);
 
+  // New commits may be inserted anywhere, but submitted commits must retain
+  // their relative order so gh stack can update the existing PR chain safely.
+  if (isSubsequence(previousIds, currentIds)) return { kind: "full" };
+
   const firstCurrentIndex = previousIds.indexOf(currentIds[0]!);
   if (firstCurrentIndex === -1) {
     throw new Error(
@@ -236,6 +240,17 @@ function analyzeEvolution(
     stackNumber: previous.stackNumber,
     branches: appended.map((change) => change.remoteBranch),
   };
+}
+
+function isSubsequence(
+  expected: readonly string[],
+  actual: readonly string[],
+): boolean {
+  let expectedIndex = 0;
+  for (const value of actual) {
+    if (value === expected[expectedIndex]) expectedIndex++;
+  }
+  return expectedIndex === expected.length;
 }
 
 function writeUpdatedState(
