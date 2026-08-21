@@ -59,10 +59,16 @@ export class GitRepository {
     }
 
     const configured = this.configuredPushRemote();
-    if (configured) return configured;
+    if (configured) {
+      return configured;
+    }
     const remotes = this.remotes();
-    if (remotes.length === 1) return remotes[0]!;
-    if (remotes.includes("origin")) return "origin";
+    if (remotes.length === 1) {
+      return remotes[0]!;
+    }
+    if (remotes.includes("origin")) {
+      return "origin";
+    }
     throw new Error(
       "Cannot choose a Git remote. Pass --remote or configure remote.pushDefault",
     );
@@ -151,7 +157,9 @@ export class GitRepository {
     remote: string,
     branches: readonly string[],
   ): Map<string, string> {
-    if (branches.length === 0) return new Map();
+    if (branches.length === 0) {
+      return new Map();
+    }
     const result = this.git([
       "ls-remote",
       "--heads",

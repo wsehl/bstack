@@ -107,13 +107,16 @@ export class GhPlatform implements GitHubPlatform {
       "--body",
       change.body,
     ];
-    if (draft) args.push("--draft");
+    if (draft) {
+      args.push("--draft");
+    }
     this.gh(args);
     const created = this.pullRequestForBranch(change.remoteBranch);
-    if (!created)
+    if (!created) {
       throw new Error(
         `GitHub did not return the PR created for ${change.remoteBranch}`,
       );
+    }
     return created;
   }
 
@@ -124,7 +127,9 @@ export class GhPlatform implements GitHubPlatform {
     draft: boolean,
   ): void {
     const args = ["stack", "link", "--base", base, "--remote", remote];
-    if (!draft) args.push("--open");
+    if (!draft) {
+      args.push("--open");
+    }
     args.push(...branches);
     this.gh(args);
   }
@@ -136,7 +141,9 @@ export class GhPlatform implements GitHubPlatform {
     draft: boolean,
   ): void {
     const args = ["stack", "link", "--remote", remote];
-    if (!draft) args.push("--open");
+    if (!draft) {
+      args.push("--open");
+    }
     args.push(String(stackNumber), ...branches);
     this.gh(args);
   }
@@ -146,7 +153,9 @@ export class GhPlatform implements GitHubPlatform {
   }
 
   editPullRequest(pr: PullRequest, change: Change): void {
-    if (pr.title === change.subject && pr.body === change.body) return;
+    if (pr.title === change.subject && pr.body === change.body) {
+      return;
+    }
     this.gh([
       "pr",
       "edit",

@@ -37,8 +37,9 @@ export function syncStack(
   const remoteBase = repository.fetchBase(remote, base);
   const baseOid = repository.mergeBase("HEAD", remoteBase);
   const commits = repository.commitsSince(baseOid);
-  if (commits.length === 0)
+  if (commits.length === 0) {
     throw new Error(`No commits found between ${base} and HEAD`);
+  }
   reporter.progress(
     `Found ${commits.length} local change${commits.length === 1 ? "" : "s"}`,
   );
@@ -157,10 +158,11 @@ export function syncStack(
     pullRequests = changes.map((change, index) => {
       const pr =
         existing[index] ?? github.pullRequestForBranch(change.remoteBranch);
-      if (!pr)
+      if (!pr) {
         throw new Error(
           `GitHub did not return a PR for ${change.remoteBranch}`,
         );
+      }
       return pr;
     });
   }
@@ -223,7 +225,9 @@ function analyzeEvolution(
   changes: readonly Change[],
   github: GitHubPlatform,
 ): Evolution {
-  if (!previous) return { kind: "full" };
+  if (!previous) {
+    return { kind: "full" };
+  }
   const previousIds = previous.changes.map((change) => change.id);
   const currentIds = changes.map((change) => change.id);
 
@@ -233,7 +237,9 @@ function analyzeEvolution(
     const onlyAppended = previousIds.every(
       (id, index) => currentIds[index] === id,
     );
-    if (onlyAppended) return { kind: "full" };
+    if (onlyAppended) {
+      return { kind: "full" };
+    }
     const stackNumber =
       previous.stackNumber ??
       github.stackNumberForPullRequest(previous.changes[0]!.pullRequest);
@@ -272,8 +278,12 @@ function analyzeEvolution(
   }
 
   const appended = changes.slice(surviving.length);
-  if (removedPrefix.length === 0) return { kind: "full" };
-  if (appended.length === 0) return { kind: "skip" };
+  if (removedPrefix.length === 0) {
+    return { kind: "full" };
+  }
+  if (appended.length === 0) {
+    return { kind: "skip" };
+  }
   if (previous.stackNumber === undefined) {
     throw new Error(
       "Cannot append after a merge because the native GitHub stack number is missing from local state",
@@ -292,7 +302,9 @@ function isSubsequence(
 ): boolean {
   let expectedIndex = 0;
   for (const value of actual) {
-    if (value === expected[expectedIndex]) expectedIndex++;
+    if (value === expected[expectedIndex]) {
+      expectedIndex++;
+    }
   }
   return expectedIndex === expected.length;
 }

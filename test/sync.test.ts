@@ -225,7 +225,9 @@ class FakeGitHub implements GitHubPlatform {
     const pr = [...this.prs.values()].find(
       (candidate) => candidate.number === number,
     );
-    if (!pr) throw new Error(`Missing fake PR ${number}`);
+    if (!pr) {
+      throw new Error(`Missing fake PR ${number}`);
+    }
     return pr;
   }
 
@@ -275,12 +277,13 @@ class FakeGitHub implements GitHubPlatform {
 
   editPullRequest(pr: PullRequest, change: Change): void {
     const current = this.prs.get(change.remoteBranch);
-    if (current)
+    if (current) {
       this.prs.set(change.remoteBranch, {
         ...current,
         title: change.subject,
         body: change.body,
       });
+    }
   }
 
   stackNumberForPullRequest(): number {
@@ -292,7 +295,9 @@ class FakeGitHub implements GitHubPlatform {
     const entry = [...this.prs.entries()].find(
       ([, candidate]) => candidate.number === pr.number,
     );
-    if (!entry) throw new Error(`Missing branch for fake PR ${reference}`);
+    if (!entry) {
+      throw new Error(`Missing branch for fake PR ${reference}`);
+    }
     return entry[0];
   }
 
@@ -346,7 +351,9 @@ function git(
     cwd,
     encoding: "utf8",
   });
-  if (result.status !== 0) throw new Error(result.stderr);
+  if (result.status !== 0) {
+    throw new Error(result.stderr);
+  }
   return { stdout: result.stdout, exitCode: result.status };
 }
 
