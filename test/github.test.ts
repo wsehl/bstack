@@ -12,10 +12,22 @@ describe("pull request visibility", () => {
     const runner = new RecordingRunner();
     const github = new GhPlatform("/repo", runner);
 
+    expect(github.currentUserLogin()).toBe("wsehl");
     github.createPullRequest(change, "main", false);
     github.linkStack(["bstack/one", "bstack/two"], "main", "origin", false);
     github.createPullRequest(change, "main", true);
     github.linkStack(["bstack/one", "bstack/two"], "main", "origin", true);
+    github.editPullRequestBase(
+      {
+        number: 1,
+        url: "https://example.test/pull/1",
+        state: "OPEN",
+        title: "Add one",
+        body: "",
+        isDraft: false,
+      },
+      "main",
+    );
 
     const createCommands = runner.commands.filter(
       (command) => command[1] === "pr" && command[2] === "create",
@@ -28,6 +40,14 @@ describe("pull request visibility", () => {
     );
     expect(linkCommands[0]).toContain("--open");
     expect(linkCommands[1]).not.toContain("--open");
+    expect(runner.commands).toContainEqual([
+      "gh",
+      "pr",
+      "edit",
+      "1",
+      "--base",
+      "main",
+    ]);
   });
 });
 
@@ -45,19 +65,22 @@ class RecordingRunner implements CommandRunner {
   run(command: readonly string[], _options: CommandOptions): CommandResult {
     this.commands.push([...command]);
     const isList = command[1] === "pr" && command[2] === "list";
+    const isCurrentUser = command[1] === "api" && command[2] === "user";
     return {
-      stdout: isList
-        ? JSON.stringify([
-            {
-              number: 1,
-              url: "https://example.test/pull/1",
-              state: "OPEN",
-              title: change.subject,
-              body: change.body,
-              isDraft: false,
-            },
-          ])
-        : "",
+      stdout: isCurrentUser
+        ? "wsehl\n"
+        : isList
+          ? JSON.stringify([
+              {
+                number: 1,
+                url: "https://example.test/pull/1",
+                state: "OPEN",
+                title: change.subject,
+                body: change.body,
+                isDraft: false,
+              },
+            ])
+          : "",
       stderr: "",
       exitCode: 0,
     };

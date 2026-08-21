@@ -15,6 +15,7 @@ const stackSchema = z.object({ number: z.number() });
 
 export interface GitHubPlatform {
   assertReady(): void;
+  currentUserLogin(): string;
   defaultBranch(): string;
   pullRequestForBranch(branch: string): PullRequest | undefined;
   pullRequest(number: number): PullRequest;
@@ -32,6 +33,7 @@ export interface GitHubPlatform {
     draft: boolean,
   ): void;
   unstack(stackNumber: number): void;
+  editPullRequestBase(pr: PullRequest, base: string): void;
   editPullRequest(pr: PullRequest, change: Change): void;
   stackNumberForPullRequest(prNumber: number): number | undefined;
   pullRequestHead(reference: string): string;
@@ -51,6 +53,13 @@ export class GhPlatform implements GitHubPlatform {
   assertReady(): void {
     this.gh(["auth", "status", "--active"]);
     this.gh(["stack", "--version"]);
+  }
+
+  currentUserLogin(): string {
+    return z
+      .string()
+      .min(1)
+      .parse(this.gh(["api", "user", "--jq", ".login"]).stdout.trim());
   }
 
   defaultBranch(): string {
@@ -151,6 +160,10 @@ export class GhPlatform implements GitHubPlatform {
 
   unstack(stackNumber: number): void {
     this.gh(["stack", "unstack", String(stackNumber)]);
+  }
+
+  editPullRequestBase(pr: PullRequest, base: string): void {
+    this.gh(["pr", "edit", String(pr.number), "--base", base]);
   }
 
   editPullRequest(pr: PullRequest, change: Change): void {

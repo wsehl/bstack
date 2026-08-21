@@ -21,6 +21,10 @@ describe("commit identity", () => {
     });
   });
 
+  test("does not recognize the old trailer spelling", () => {
+    expect(readChangeId("Change\n\nBstack-Id: legacy\n")).toBeUndefined();
+  });
+
   test("rewrites only the parent and message of a raw commit", () => {
     const raw = [
       "tree aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -45,6 +49,6 @@ describe("commit identity", () => {
       "parent dddddddddddddddddddddddddddddddddddddddd",
     );
     expect(rewritten).toContain("author Ada <ada@example.com> 1 +0000");
-    expect(rewritten.endsWith("Bstack-Id: stable\n")).toBe(true);
+    expect(rewritten.endsWith("bstack-id: stable\n")).toBe(true);
   });
 });

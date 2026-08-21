@@ -118,7 +118,11 @@ export class GitRepository {
     );
   }
 
-  ensureChangeIds(commits: readonly Commit[], dryRun: boolean): Change[] {
+  ensureChangeIds(
+    commits: readonly Commit[],
+    dryRun: boolean,
+    userLogin: string,
+  ): Change[] {
     const assigned = commits.map((commit) => commit.changeId ?? newChangeId());
     const needsRewrite = commits.some(
       (commit) => commit.changeId === undefined,
@@ -149,7 +153,13 @@ export class GitRepository {
       const id = assigned[index]!;
       const oid = needsRewrite && !dryRun ? rewrittenOids[index]! : commit.oid;
       const { subject, body } = splitCommitMessage(commit.message);
-      return { id, oid, subject, body, remoteBranch: `bstack/${id}` };
+      return {
+        id,
+        oid,
+        subject,
+        body,
+        remoteBranch: `bstack/${userLogin}/${id}`,
+      };
     });
   }
 

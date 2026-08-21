@@ -30,9 +30,11 @@ export function syncStack(
   github.assertReady();
   const remote = repository.resolveRemote(options.remote);
   const base = options.base ?? github.defaultBranch();
+  const userLogin = github.currentUserLogin();
   reporter.progress(
     `Using ${remote} as the remote and ${base} as the stack base`,
   );
+  reporter.progress(`Using ${userLogin} as the remote branch namespace`);
   reporter.progress(`Fetching ${remote}/${base}`);
   const remoteBase = repository.fetchBase(remote, base);
   const baseOid = repository.mergeBase("HEAD", remoteBase);
@@ -54,7 +56,11 @@ export function syncStack(
   } else {
     reporter.progress("All commits already have stable change IDs");
   }
-  const changes = repository.ensureChangeIds(commits, options.dryRun);
+  const changes = repository.ensureChangeIds(
+    commits,
+    options.dryRun,
+    userLogin,
+  );
   if (options.dryRun) {
     reporter.progress(
       "Dry run complete; no commits or remote branches were changed",
@@ -69,7 +75,12 @@ export function syncStack(
     state,
     new Set(changes.map((change) => change.id)),
   );
-  const evolution = analyzeEvolution(previous, changes, github);
+  const evolution = analyzeEvolution(
+    previous,
+    changes,
+    github,
+    repository.currentBranch() === "",
+  );
 
   reporter.progress(
     `Publishing ${changes.length} protected remote ref${changes.length === 1 ? "" : "s"}`,
@@ -92,9 +103,20 @@ export function syncStack(
         ? "Using the existing pull request"
         : "Creating a pull request",
     );
-    pullRequests = [
-      existing[0] ?? github.createPullRequest(changes[0]!, base, options.draft),
-    ];
+    const pullRequest =
+      existing[0] ?? github.createPullRequest(changes[0]!, base, options.draft);
+    if (evolution.kind === "collapse") {
+      reporter.progress(
+        `Removing omitted pull requests from stack #${evolution.stackNumber}`,
+      );
+      github.unstack(evolution.stackNumber);
+      try {
+        github.editPullRequestBase(pullRequest, base);
+      } catch (error) {
+        restorePreviousStack(github, previous!, base, remote, reporter, error);
+      }
+    }
+    pullRequests = [pullRequest];
   } else {
     if (evolution.kind === "full") {
       reporter.progress(
@@ -108,7 +130,7 @@ export function syncStack(
       );
     } else if (evolution.kind === "rebuild") {
       reporter.progress(
-        `Rebuilding stack #${evolution.stackNumber} to insert pull requests`,
+        `Rebuilding stack #${evolution.stackNumber} to ${evolution.action} pull requests`,
       );
       github.unstack(evolution.stackNumber);
       try {
@@ -119,26 +141,7 @@ export function syncStack(
           options.draft,
         );
       } catch (error) {
-        const rebuildMessage =
-          error instanceof Error ? error.message : String(error);
-        reporter.progress(
-          "Rebuild failed; restoring the previous native GitHub stack",
-        );
-        try {
-          github.linkStack(
-            previous!.changes.map((change) => change.remoteBranch),
-            base,
-            remote,
-            true,
-          );
-        } catch (error) {
-          const rollbackMessage =
-            error instanceof Error ? error.message : String(error);
-          throw new Error(
-            `Stack rebuild failed: ${rebuildMessage}\nRestoring the previous stack also failed: ${rollbackMessage}`,
-          );
-        }
-        throw error;
+        restorePreviousStack(github, previous!, base, remote, reporter, error);
       }
     } else if (evolution.kind === "append") {
       reporter.progress(
@@ -180,10 +183,12 @@ export function syncStack(
   const stackNumber =
     evolution.kind === "rebuild"
       ? github.stackNumberForPullRequest(pullRequests[0]!.number)
-      : (previous?.stackNumber ??
-        (pullRequests.length > 1
-          ? github.stackNumberForPullRequest(pullRequests[0]!.number)
-          : undefined));
+      : evolution.kind === "collapse"
+        ? undefined
+        : (previous?.stackNumber ??
+          (pullRequests.length > 1
+            ? github.stackNumberForPullRequest(pullRequests[0]!.number)
+            : undefined));
   const synchronizedChanges = changes.map((change, index) => ({
     id: change.id,
     remoteBranch: change.remoteBranch,
@@ -221,7 +226,12 @@ export function syncStack(
 
 type Evolution =
   | { kind: "full" }
-  | { kind: "rebuild"; stackNumber: number }
+  | {
+      kind: "rebuild";
+      stackNumber: number;
+      action: "insert" | "remove" | "update";
+    }
+  | { kind: "collapse"; stackNumber: number }
   | { kind: "skip" }
   | { kind: "partial"; previousOffset: number }
   | { kind: "append"; stackNumber: number; branches: string[] };
@@ -230,16 +240,30 @@ function analyzeEvolution(
   previous: StoredStack | undefined,
   changes: readonly Change[],
   github: GitHubPlatform,
+  preserveHigherChanges: boolean,
 ): Evolution {
   if (!previous) {
     return { kind: "full" };
   }
   const previousIds = previous.changes.map((change) => change.id);
   const currentIds = changes.map((change) => change.id);
+  const previousIdSet = new Set(previousIds);
+  const currentIdSet = new Set(currentIds);
+  const sharedPrevious = previousIds.filter((id) => currentIdSet.has(id));
+  const sharedCurrent = currentIds.filter((id) => previousIdSet.has(id));
 
-  // New commits may be inserted anywhere, but submitted commits must retain
-  // their relative order so gh stack can update the existing PR chain safely.
-  if (isSubsequence(previousIds, currentIds)) {
+  if (!sameValues(sharedPrevious, sharedCurrent)) {
+    throw new Error(
+      "Submitted commits cannot be reordered. Restore their original relative order before syncing",
+    );
+  }
+
+  const removed = previous.changes.filter(
+    (change) => !currentIdSet.has(change.id),
+  );
+  const added = changes.filter((change) => !previousIdSet.has(change.id));
+
+  if (removed.length === 0) {
     const onlyAppended = previousIds.every(
       (id, index) => currentIds[index] === id,
     );
@@ -251,68 +275,118 @@ function analyzeEvolution(
       github.stackNumberForPullRequest(previous.changes[0]!.pullRequest);
     return stackNumber === undefined
       ? { kind: "full" }
-      : { kind: "rebuild", stackNumber };
+      : { kind: "rebuild", stackNumber, action: "insert" };
   }
 
   const firstCurrentIndex = previousIds.indexOf(currentIds[0]!);
-  if (firstCurrentIndex === -1) {
-    throw new Error(
-      "The current commits do not continue the previously submitted stack",
+  const isPreviousSlice =
+    firstCurrentIndex >= 0 &&
+    currentIds.every(
+      (id, index) => previousIds[firstCurrentIndex + index] === id,
     );
-  }
-
-  const removedPrefix = previous.changes.slice(0, firstCurrentIndex);
-  for (const removed of removedPrefix) {
-    if (github.pullRequest(removed.pullRequest).state !== "MERGED") {
-      throw new Error(
-        "Submitted commits may only disappear from the bottom after their pull requests are merged",
-      );
+  if (
+    preserveHigherChanges &&
+    added.length === 0 &&
+    isPreviousSlice &&
+    firstCurrentIndex + currentIds.length < previousIds.length
+  ) {
+    const removedPrefix = previous.changes.slice(0, firstCurrentIndex);
+    const prefixWasMerged = removedPrefix.every(
+      (change) => github.pullRequest(change.pullRequest).state === "MERGED",
+    );
+    if (prefixWasMerged) {
+      return { kind: "partial", previousOffset: firstCurrentIndex };
     }
   }
 
-  const surviving = previousIds.slice(firstCurrentIndex);
-  const sharedLength = Math.min(surviving.length, currentIds.length);
-  for (let index = 0; index < sharedLength; index++) {
-    if (surviving[index] !== currentIds[index]) {
-      throw new Error(
-        "Reordering or removing submitted commits is not supported yet. Restore the original order before syncing",
-      );
-    }
-  }
-  if (currentIds.length < surviving.length) {
-    return { kind: "partial", previousOffset: firstCurrentIndex };
-  }
+  const removedIsPrefix = removed.every(
+    (change, index) => previous.changes[index] === change,
+  );
+  const removedPrefixWasMerged =
+    removedIsPrefix &&
+    removed.every(
+      (change) => github.pullRequest(change.pullRequest).state === "MERGED",
+    );
+  const survivingIds = previousIds.slice(removed.length);
+  const onlyAppendedAfterMergedPrefix =
+    removedPrefixWasMerged &&
+    survivingIds.every((id, index) => currentIds[index] === id) &&
+    currentIds.slice(survivingIds.length).every((id) => !previousIdSet.has(id));
 
-  const appended = changes.slice(surviving.length);
-  if (removedPrefix.length === 0) {
-    return { kind: "full" };
-  }
-  if (appended.length === 0) {
+  if (removedPrefixWasMerged && added.length === 0) {
     return { kind: "skip" };
   }
-  if (previous.stackNumber === undefined) {
+  if (onlyAppendedAfterMergedPrefix) {
+    if (previous.stackNumber === undefined) {
+      throw new Error(
+        "Cannot append after a merge because the native GitHub stack number is missing from local state",
+      );
+    }
+    return {
+      kind: "append",
+      stackNumber: previous.stackNumber,
+      branches: added.map((change) => change.remoteBranch),
+    };
+  }
+
+  const stackNumber =
+    previous.stackNumber ??
+    github.stackNumberForPullRequest(previous.changes[0]!.pullRequest);
+  if (stackNumber === undefined) {
     throw new Error(
-      "Cannot append after a merge because the native GitHub stack number is missing from local state",
+      "Cannot remove submitted commits because the native GitHub stack number is missing from local state",
     );
   }
+  if (changes.length === 1) {
+    return { kind: "collapse", stackNumber };
+  }
   return {
-    kind: "append",
-    stackNumber: previous.stackNumber,
-    branches: appended.map((change) => change.remoteBranch),
+    kind: "rebuild",
+    stackNumber,
+    action: added.length === 0 ? "remove" : "update",
   };
 }
 
-function isSubsequence(
-  expected: readonly string[],
-  actual: readonly string[],
+function sameValues(
+  left: readonly string[],
+  right: readonly string[],
 ): boolean {
-  let expectedIndex = 0;
-  for (const value of actual) {
-    if (value === expected[expectedIndex]) {
-      expectedIndex++;
-    }
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function restorePreviousStack(
+  github: GitHubPlatform,
+  previous: StoredStack,
+  base: string,
+  remote: string,
+  reporter: Reporter,
+  rebuildError: unknown,
+): never {
+  const rebuildMessage =
+    rebuildError instanceof Error ? rebuildError.message : String(rebuildError);
+  reporter.progress(
+    "Rebuild failed; restoring the previous native GitHub stack",
+  );
+  try {
+    github.linkStack(
+      previous.changes.map((change) => change.remoteBranch),
+      base,
+      remote,
+      true,
+    );
+  } catch (rollbackError) {
+    const rollbackMessage =
+      rollbackError instanceof Error
+        ? rollbackError.message
+        : String(rollbackError);
+    throw new Error(
+      `Stack rebuild failed: ${rebuildMessage}\nRestoring the previous stack also failed: ${rollbackMessage}`,
+    );
   }
-  return expectedIndex === expected.length;
+  throw rebuildError;
 }
 
 function writeUpdatedState(
