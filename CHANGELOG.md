@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/wsehl/bstack/compare/v0.3.0...v1.0.0) (2026-08-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* support stack removal and namespace change identities
+
+### Features
+
+* support stack removal and namespace change identities ([ecba17f](https://github.com/wsehl/bstack/commit/ecba17f919a44ae821bcef7efdd198f45057a31a))
+
 ## [0.3.0](https://github.com/wsehl/bstack/compare/v0.2.2...v0.3.0) (2026-08-21)
 
 
