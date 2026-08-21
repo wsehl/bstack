@@ -3,5 +3,5 @@
   "semi": true,
   "printWidth": 80,
   "sortPackageJson": false,
-  "ignorePatterns": ["CHANGELOG.md"]
+  "ignorePatterns": ["CHANGELOG.md", ".release-please"]
 }
