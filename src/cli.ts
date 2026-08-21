@@ -46,10 +46,12 @@ function main(): void {
     process.stdout.write(help);
     return;
   }
+
   if (values.version) {
     console.log(packageJson.version);
     return;
   }
+
   const runner = new NodeCommandRunner();
   const cwd = process.cwd();
   const repository = new GitRepository(cwd, runner);
@@ -92,6 +94,7 @@ function main(): void {
   console.log(
     `${values["dry-run"] ? "Would sync" : "Synced"} ${result.changes.length} change${result.changes.length === 1 ? "" : "s"} against ${result.base}:`,
   );
+
   for (const change of result.changes) {
     const destination = change.pullRequest ? ` ${change.pullRequest.url}` : "";
     console.log(`  ${change.oid.slice(0, 8)}  ${change.subject}${destination}`);

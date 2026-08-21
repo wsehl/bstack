@@ -91,9 +91,11 @@ export class GitHubCliPlatform implements GitHubPlatform {
       "number,url,state,title,body,isDraft",
     ]).stdout;
     const candidates = pullRequestSchema.array().parse(JSON.parse(raw));
+
     const selected =
       candidates.find((pr) => pr.state === "OPEN") ??
       candidates.find((pr) => pr.state === "MERGED");
+
     return selected;
   }
 
@@ -105,6 +107,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
       "--json",
       "number,url,state,title,body,isDraft",
     ]).stdout;
+
     return pullRequestSchema.parse(JSON.parse(raw));
   }
 
@@ -129,12 +132,14 @@ export class GitHubCliPlatform implements GitHubPlatform {
       args.push("--draft");
     }
     this.gh(args);
+
     const created = this.pullRequestForBranch(change.remoteBranch);
     if (!created) {
       throw new Error(
         `GitHub did not return the PR created for ${change.remoteBranch}`,
       );
     }
+
     return created;
   }
 
@@ -145,10 +150,12 @@ export class GitHubCliPlatform implements GitHubPlatform {
     draft: boolean,
   ): void {
     const args = ["stack", "link", "--base", base, "--remote", remote];
+
     if (!draft) {
       args.push("--open");
     }
     args.push(...branches);
+
     this.gh(args);
   }
 
@@ -159,10 +166,12 @@ export class GitHubCliPlatform implements GitHubPlatform {
     draft: boolean,
   ): void {
     const args = ["stack", "link", "--remote", remote];
+
     if (!draft) {
       args.push("--open");
     }
     args.push(String(stackNumber), ...branches);
+
     this.gh(args);
   }
 
@@ -178,6 +187,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     if (pr.title === change.subject && pr.body === change.body) {
       return;
     }
+
     this.gh([
       "pr",
       "edit",
@@ -194,7 +204,9 @@ export class GitHubCliPlatform implements GitHubPlatform {
       "api",
       `repos/{owner}/{repo}/stacks?pull_request=${prNumber}`,
     ]).stdout;
+
     const stacks = stackSchema.array().parse(JSON.parse(raw));
+
     return stacks[0]?.number;
   }
 

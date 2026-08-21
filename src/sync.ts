@@ -30,23 +30,29 @@ export function syncStack(
   options: SyncOptions,
 ): SyncResult {
   const { reporter } = options;
+
   reporter.progress("Checking the repository and GitHub prerequisites");
   repository.assertReady();
   github.assertReady();
+
   const remote = repository.resolveRemote(options.remote);
   const base = options.base ?? github.defaultBranch();
   const userLogin = github.currentUserLogin();
+
   reporter.progress(
     `Using ${remote} as the remote and ${base} as the stack base`,
   );
   reporter.progress(`Using ${userLogin} as the remote branch namespace`);
   reporter.progress(`Fetching ${remote}/${base}`);
+
   const remoteBase = repository.fetchBase(remote, base);
   const baseOid = repository.mergeBase("HEAD", remoteBase);
   const commits = repository.commitsSince(baseOid);
+
   if (commits.length === 0) {
     throw new Error(`No commits found between ${base} and HEAD`);
   }
+
   reporter.progress(
     `Found ${commits.length} local change${commits.length === 1 ? "" : "s"}`,
   );
@@ -61,11 +67,13 @@ export function syncStack(
   } else {
     reporter.progress("All commits already have stable change IDs");
   }
+
   const changes = repository.ensureChangeIds(
     commits,
     options.dryRun,
     userLogin,
   );
+
   if (options.dryRun) {
     reporter.progress(
       "Dry run complete; no commits or remote branches were changed",
@@ -74,13 +82,14 @@ export function syncStack(
   }
 
   reporter.progress("Reading the previous stack state");
+
   const store = new StateStore(repository.statePath());
   const state = store.read();
   const previous = store.findByChangeIds(
     state,
     new Set(changes.map((change) => change.id)),
   );
-  const evolution = analyzeEvolution(
+  const transition = analyzeStackTransition(
     previous,
     changes,
     github,
@@ -98,7 +107,7 @@ export function syncStack(
   );
   let pullRequests: PullRequest[];
   if (changes.length === 1) {
-    if (evolution.kind === "partial") {
+    if (transition.kind === "partial") {
       reporter.progress(
         "Updating this down-stack prefix while preserving higher pull requests",
       );
@@ -110,11 +119,11 @@ export function syncStack(
     );
     const pullRequest =
       existing[0] ?? github.createPullRequest(changes[0]!, base, options.draft);
-    if (evolution.kind === "collapse") {
+    if (transition.kind === "collapse") {
       reporter.progress(
-        `Removing omitted pull requests from stack #${evolution.stackNumber}`,
+        `Removing omitted pull requests from stack #${transition.stackNumber}`,
       );
-      github.unstack(evolution.stackNumber);
+      github.unstack(transition.stackNumber);
       try {
         github.editPullRequestBase(pullRequest, base);
       } catch (error) {
@@ -123,7 +132,7 @@ export function syncStack(
     }
     pullRequests = [pullRequest];
   } else {
-    if (evolution.kind === "full") {
+    if (transition.kind === "full") {
       reporter.progress(
         `Linking ${changes.length} pull requests as a native GitHub stack`,
       );
@@ -133,11 +142,11 @@ export function syncStack(
         remote,
         options.draft,
       );
-    } else if (evolution.kind === "rebuild") {
+    } else if (transition.kind === "rebuild") {
       reporter.progress(
-        `Rebuilding stack #${evolution.stackNumber} to ${evolution.action} pull requests`,
+        `Rebuilding stack #${transition.stackNumber} to ${transition.action} pull requests`,
       );
-      github.unstack(evolution.stackNumber);
+      github.unstack(transition.stackNumber);
       try {
         github.linkStack(
           changes.map((change) => change.remoteBranch),
@@ -148,17 +157,17 @@ export function syncStack(
       } catch (error) {
         restorePreviousStack(github, previous!, base, remote, reporter, error);
       }
-    } else if (evolution.kind === "append") {
+    } else if (transition.kind === "append") {
       reporter.progress(
-        `Appending ${evolution.branches.length} pull request${evolution.branches.length === 1 ? "" : "s"} to stack #${evolution.stackNumber}`,
+        `Appending ${transition.branches.length} pull request${transition.branches.length === 1 ? "" : "s"} to stack #${transition.stackNumber}`,
       );
       github.appendToStack(
-        evolution.stackNumber,
-        evolution.branches,
+        transition.stackNumber,
+        transition.branches,
         remote,
         options.draft,
       );
-    } else if (evolution.kind === "partial") {
+    } else if (transition.kind === "partial") {
       reporter.progress(
         "Updating this down-stack prefix while preserving higher pull requests",
       );
@@ -186,9 +195,9 @@ export function syncStack(
   }
 
   const stackNumber =
-    evolution.kind === "rebuild"
+    transition.kind === "rebuild"
       ? github.stackNumberForPullRequest(pullRequests[0]!.number)
-      : evolution.kind === "collapse"
+      : transition.kind === "collapse"
         ? undefined
         : (previous?.stackNumber ??
           (pullRequests.length > 1
@@ -201,10 +210,10 @@ export function syncStack(
     url: pullRequests[index]!.url,
   }));
   const storedChanges =
-    evolution.kind === "partial" && previous
+    transition.kind === "partial" && previous
       ? [
           ...synchronizedChanges,
-          ...previous.changes.slice(evolution.previousOffset + changes.length),
+          ...previous.changes.slice(transition.previousOffset + changes.length),
         ]
       : synchronizedChanges;
   const updatedStack: StoredStack = {
@@ -241,7 +250,7 @@ type StackTransition =
   | { kind: "partial"; previousOffset: number }
   | { kind: "append"; stackNumber: number; branches: string[] };
 
-function analyzeEvolution(
+function analyzeStackTransition(
   previous: StoredStack | undefined,
   changes: readonly StackChange[],
   github: GitHubPlatform,

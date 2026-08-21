@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Commit } from "./model";
 
 const CHANGE_ID_TRAILER = "bstack-id";
+
 const changeIdTrailerPattern = new RegExp(
   `^${CHANGE_ID_TRAILER}:\\s*(\\S+)\\s*$`,
   "gm",
@@ -43,6 +44,7 @@ export function parseRawCommit(oid: string, raw: string): Commit {
   const headers = raw.slice(0, boundary).split("\n");
   const treeLine = headers.find((line) => line.startsWith("tree "));
   const parents = headers.filter((line) => line.startsWith("parent "));
+
   if (!treeLine || parents.length !== 1) {
     throw new Error(
       `Commit ${oid} must have exactly one parent; merge and root commits are not supported`,
@@ -55,6 +57,7 @@ export function parseRawCommit(oid: string, raw: string): Commit {
   }
 
   const message = raw.slice(boundary + 2);
+
   return {
     oid,
     tree: treeLine.slice("tree ".length),
@@ -95,5 +98,6 @@ export function splitCommitMessage(message: string): CommitMessage {
     .trim();
   const [subject = "Untitled change", ...bodyLines] =
     withoutIdentity.split("\n");
+
   return { subject, body: bodyLines.join("\n").trim() };
 }

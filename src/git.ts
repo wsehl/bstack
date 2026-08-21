@@ -23,7 +23,9 @@ export class GitRepository {
 
   assertReady(): void {
     this.git(["rev-parse", "--show-toplevel"]);
+
     const status = this.git(["status", "--porcelain"]).stdout;
+
     if (status.trim()) {
       throw new Error(
         "The working tree must be clean before bstack rewrites commits or pushes branches",
@@ -45,6 +47,7 @@ export class GitRepository {
     const result = this.git(["config", "--get", "remote.pushDefault"], {
       allowFailure: true,
     });
+
     return result.exitCode === 0
       ? result.stdout.trim() || undefined
       : undefined;
@@ -62,13 +65,16 @@ export class GitRepository {
     if (configured) {
       return configured;
     }
+
     const remotes = this.remotes();
     if (remotes.length === 1) {
       return remotes[0]!;
     }
+
     if (remotes.includes("origin")) {
       return "origin";
     }
+
     throw new Error(
       "Cannot choose a Git remote. Pass --remote or configure remote.pushDefault",
     );
@@ -76,23 +82,27 @@ export class GitRepository {
 
   fetchBase(remote: string, base: string): string {
     const destination = `refs/remotes/${remote}/${base}`;
+
     this.git([
       "fetch",
       "--no-tags",
       remote,
       `refs/heads/${base}:${destination}`,
     ]);
+
     return destination;
   }
 
   fetchRemoteBranch(remote: string, branch: string): string {
     const destination = `refs/remotes/${remote}/${branch}`;
+
     this.git([
       "fetch",
       "--no-tags",
       remote,
       `+refs/heads/${branch}:${destination}`,
     ]);
+
     return destination;
   }
 
@@ -113,6 +123,7 @@ export class GitRepository {
     ])
       .stdout.split("\n")
       .filter(Boolean);
+
     return oids.map((oid) =>
       parseRawCommit(oid, this.git(["cat-file", "commit", oid]).stdout),
     );
@@ -172,12 +183,14 @@ export class GitRepository {
     if (branches.length === 0) {
       return new Map();
     }
+
     const result = this.git([
       "ls-remote",
       "--heads",
       remote,
       ...branches.map((branch) => `refs/heads/${branch}`),
     ]);
+
     return new Map(
       result.stdout
         .split("\n")
@@ -194,6 +207,7 @@ export class GitRepository {
       remote,
       changes.map((change) => change.remoteBranch),
     );
+
     const leases: string[] = [];
     const refspecs: string[] = [];
     for (const change of changes) {

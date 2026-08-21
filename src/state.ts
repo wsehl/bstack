@@ -32,6 +32,7 @@ export class StateStore {
       const parsed = stateSchema.parse(
         JSON.parse(readFileSync(this.path, "utf8")),
       );
+
       const stacks = parsed.stacks.map((stack): StoredStack => {
         const stored: StoredStack = {
           remote: stack.remote,
@@ -43,6 +44,7 @@ export class StateStore {
         }
         return stored;
       });
+
       return { schemaVersion: 1, stacks };
     } catch (error) {
       if (
@@ -52,11 +54,13 @@ export class StateStore {
       ) {
         return emptyState();
       }
+
       if (error instanceof z.ZodError) {
         throw new Error(`Unsupported bstack state in ${this.path}`, {
           cause: error,
         });
       }
+
       throw error;
     }
   }
@@ -75,11 +79,13 @@ export class StateStore {
     const matches = state.stacks.filter((stack) =>
       stack.changes.some((change) => ids.has(change.id)),
     );
+
     if (matches.length > 1) {
       throw new Error(
         "The current commits match more than one stored bstack stack",
       );
     }
+
     return matches[0];
   }
 }

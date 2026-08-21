@@ -21,19 +21,25 @@ export function checkoutStack(
   options: CheckoutOptions,
 ): CheckoutResult {
   const { reporter } = options;
+
   reporter.progress("Checking the repository and GitHub prerequisites");
   repository.assertReady();
   github.assertReady();
 
   const remote = repository.resolveRemote(options.remote);
   reporter.progress(`Looking up pull request ${options.reference}`);
+
   const headRef = github.pullRequestHead(options.reference);
   if (!headRef.startsWith("bstack/")) {
     reporter.progress(
       "This is not a bstack pull request; delegating to gh pr checkout",
     );
     github.checkoutPullRequest(options.reference);
-    return { headRef, delegated: true };
+
+    return {
+      headRef,
+      delegated: true,
+    };
   }
 
   let currentBase: string | undefined;
@@ -63,5 +69,9 @@ export function checkoutStack(
   reporter.progress(
     "Checkout complete; amend the commits and run bstack to sync updates",
   );
-  return { headRef, delegated: false };
+
+  return {
+    headRef,
+    delegated: false,
+  };
 }
