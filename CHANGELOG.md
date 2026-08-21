@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/wsehl/bstack/compare/v1.0.3...v1.0.4) (2026-08-21)
+
+
+### Miscellaneous Chores
+
+* rename script name ([8be94bb](https://github.com/wsehl/bstack/commit/8be94bb351878d8f72d64faa207ca7bb0deddb18))
+
 ## [1.0.3](https://github.com/wsehl/bstack/compare/v1.0.2...v1.0.3) (2026-08-21)
 
 
