@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.1](https://github.com/wsehl/bstack/compare/v1.0.0...v1.0.1) (2026-08-21)
+
+
+### Miscellaneous Chores
+
+* **release-please:** support more changelog section types ([719c80b](https://github.com/wsehl/bstack/commit/719c80b4e403d707637e389af08948037a32bd12))
+
+
+### Code Refactoring
+
+* change naming ([174df55](https://github.com/wsehl/bstack/commit/174df552e6ba0ccc4cd5bf1cada738fd773fe0fa))
+* clarify stack naming and terminology ([6e3a2e3](https://github.com/wsehl/bstack/commit/6e3a2e3da45891a893b5cde38aec2134c1b2d1db))
+
 ## [1.0.0](https://github.com/wsehl/bstack/compare/v0.3.0...v1.0.0) (2026-08-21)
 
 
