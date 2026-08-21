@@ -119,6 +119,8 @@ export function syncStack(
           options.draft,
         );
       } catch (error) {
+        const rebuildMessage =
+          error instanceof Error ? error.message : String(error);
         reporter.progress(
           "Rebuild failed; restoring the previous native GitHub stack",
         );
@@ -129,9 +131,11 @@ export function syncStack(
             remote,
             true,
           );
-        } catch (rollbackError) {
+        } catch (error) {
+          const rollbackMessage =
+            error instanceof Error ? error.message : String(error);
           throw new Error(
-            `Stack rebuild failed: ${errorMessage(error)}\nRestoring the previous stack also failed: ${errorMessage(rollbackError)}`,
+            `Stack rebuild failed: ${rebuildMessage}\nRestoring the previous stack also failed: ${rollbackMessage}`,
           );
         }
         throw error;
@@ -196,9 +200,11 @@ export function syncStack(
   const stored: StoredStack = {
     remote,
     base,
-    ...(stackNumber === undefined ? {} : { stackNumber }),
     changes: storedChanges,
   };
+  if (stackNumber !== undefined) {
+    stored.stackNumber = stackNumber;
+  }
   writeUpdatedState(store, state, previous, stored);
   reporter.progress("Saved the local stack state");
 
@@ -307,10 +313,6 @@ function isSubsequence(
     }
   }
   return expectedIndex === expected.length;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function writeUpdatedState(

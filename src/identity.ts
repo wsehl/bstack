@@ -3,6 +3,11 @@ import type { Commit } from "./model";
 
 const trailerPattern = /^Bstack-Id:\s*(\S+)\s*$/gim;
 
+type CommitMessage = {
+  subject: string;
+  body: string;
+};
+
 export function readChangeId(message: string): string | undefined {
   const matches = [...message.matchAll(trailerPattern)];
   if (matches.length > 1) {
@@ -73,10 +78,7 @@ export function rewriteCommit(
   return `${rewrittenHeaders.join("\n")}\n\n${message}`;
 }
 
-export function splitCommitMessage(message: string): {
-  subject: string;
-  body: string;
-} {
+export function splitCommitMessage(message: string): CommitMessage {
   const withoutIdentity = message
     .split("\n")
     .filter((line) => !/^Bstack-Id:\s*\S+\s*$/i.test(line))

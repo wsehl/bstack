@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 export type CommandOptions = {
   cwd: string;
   stdin?: string;
@@ -57,4 +59,3 @@ export class NodeCommandRunner implements CommandRunner {
     return commandResult;
   }
 }
-import { spawnSync } from "node:child_process";

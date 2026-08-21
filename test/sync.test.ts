@@ -319,7 +319,7 @@ class FakeGitHub implements GitHubPlatform {
   }
 }
 
-function createRepository(): { worktree: string; remote: string } {
+function createRepository() {
   const root = mkdtempSync(join(tmpdir(), "bstack-test-"));
   temporaryDirectories.push(root);
   const remote = join(root, "origin.git");
@@ -343,10 +343,7 @@ function createRepository(): { worktree: string; remote: string } {
   return { worktree, remote };
 }
 
-function git(
-  cwd: string,
-  ...args: string[]
-): { stdout: string; exitCode: number } {
+function git(cwd: string, ...args: string[]) {
   const result = spawnSync("git", args, {
     cwd,
     encoding: "utf8",
@@ -357,10 +354,7 @@ function git(
   return { stdout: result.stdout, exitCode: result.status };
 }
 
-function gitAllowFailure(
-  cwd: string,
-  ...args: string[]
-): { stdout: string; exitCode: number } {
+function gitAllowFailure(cwd: string, ...args: string[]) {
   const result = spawnSync("git", args, {
     cwd,
     encoding: "utf8",

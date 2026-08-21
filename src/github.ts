@@ -1,16 +1,17 @@
+import { z } from "zod";
 import type { CommandRunner } from "./command";
 import type { Change, PullRequest } from "./model";
 
-type PullRequestJson = {
-  number: number;
-  url: string;
-  state: string;
-  title: string;
-  body: string;
-  isDraft: boolean;
-};
+const pullRequestSchema = z.object({
+  number: z.number(),
+  url: z.string(),
+  state: z.enum(["OPEN", "CLOSED", "MERGED"]),
+  title: z.string(),
+  body: z.string(),
+  isDraft: z.boolean(),
+});
 
-type StackJson = { number: number };
+const stackSchema = z.object({ number: z.number() });
 
 export interface GitHubPlatform {
   assertReady(): void;
@@ -76,11 +77,11 @@ export class GhPlatform implements GitHubPlatform {
       "--json",
       "number,url,state,title,body,isDraft",
     ]).stdout;
-    const candidates = JSON.parse(raw) as PullRequestJson[];
+    const candidates = pullRequestSchema.array().parse(JSON.parse(raw));
     const selected =
       candidates.find((pr) => pr.state === "OPEN") ??
       candidates.find((pr) => pr.state === "MERGED");
-    return selected ? normalizePullRequest(selected) : undefined;
+    return selected;
   }
 
   pullRequest(number: number): PullRequest {
@@ -91,7 +92,7 @@ export class GhPlatform implements GitHubPlatform {
       "--json",
       "number,url,state,title,body,isDraft",
     ]).stdout;
-    return normalizePullRequest(JSON.parse(raw) as PullRequestJson);
+    return pullRequestSchema.parse(JSON.parse(raw));
   }
 
   createPullRequest(change: Change, base: string, draft: boolean): PullRequest {
@@ -172,7 +173,7 @@ export class GhPlatform implements GitHubPlatform {
       "api",
       `repos/{owner}/{repo}/stacks?pull_request=${prNumber}`,
     ]).stdout;
-    const stacks = JSON.parse(raw) as StackJson[];
+    const stacks = stackSchema.array().parse(JSON.parse(raw));
     return stacks[0]?.number;
   }
 
@@ -191,11 +192,4 @@ export class GhPlatform implements GitHubPlatform {
   checkoutPullRequest(reference: string): void {
     this.gh(["pr", "checkout", reference]);
   }
-}
-
-function normalizePullRequest(pr: PullRequestJson): PullRequest {
-  if (pr.state !== "OPEN" && pr.state !== "CLOSED" && pr.state !== "MERGED") {
-    throw new Error(`GitHub returned an unknown PR state: ${pr.state}`);
-  }
-  return { ...pr, state: pr.state };
 }

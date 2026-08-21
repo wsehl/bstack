@@ -1,22 +1,61 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { z } from "zod";
 import type { BstackState, StoredStack } from "./model";
 
 const emptyState = (): BstackState => ({ schemaVersion: 1, stacks: [] });
+
+const storedChangeSchema = z.object({
+  id: z.string(),
+  remoteBranch: z.string(),
+  pullRequest: z.number(),
+  url: z.string(),
+});
+
+const storedStackSchema = z.object({
+  remote: z.string(),
+  base: z.string(),
+  stackNumber: z.number().optional(),
+  changes: storedChangeSchema.array(),
+});
+
+const stateSchema = z.object({
+  schemaVersion: z.literal(1),
+  stacks: storedStackSchema.array(),
+});
 
 export class StateStore {
   constructor(private readonly path: string) {}
 
   read(): BstackState {
     try {
-      const parsed = JSON.parse(readFileSync(this.path, "utf8")) as unknown;
-      if (!isState(parsed)) {
-        throw new Error(`Unsupported bstack state in ${this.path}`);
-      }
-      return parsed;
+      const parsed = stateSchema.parse(
+        JSON.parse(readFileSync(this.path, "utf8")),
+      );
+      const stacks = parsed.stacks.map((stack): StoredStack => {
+        const stored: StoredStack = {
+          remote: stack.remote,
+          base: stack.base,
+          changes: stack.changes,
+        };
+        if (stack.stackNumber !== undefined) {
+          stored.stackNumber = stack.stackNumber;
+        }
+        return stored;
+      });
+      return { schemaVersion: 1, stacks };
     } catch (error) {
-      if (isMissingFile(error)) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         return emptyState();
+      }
+      if (error instanceof z.ZodError) {
+        throw new Error(`Unsupported bstack state in ${this.path}`, {
+          cause: error,
+        });
       }
       throw error;
     }
@@ -43,16 +82,4 @@ export class StateStore {
     }
     return matches[0];
   }
-}
-
-function isMissingFile(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "ENOENT";
-}
-
-function isState(value: unknown): value is BstackState {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const candidate = value as { schemaVersion?: unknown; stacks?: unknown };
-  return candidate.schemaVersion === 1 && Array.isArray(candidate.stacks);
 }
