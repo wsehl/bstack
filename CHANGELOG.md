@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/wsehl/bstack/compare/v0.2.2...v0.3.0) (2026-08-21)
+
+
+### Features
+
+* **cli:** create ready pull requests by default ([1465962](https://github.com/wsehl/bstack/commit/14659626e0639f35fdb7b47fed2c150770b3d59c))
+
 ## [0.2.2](https://github.com/wsehl/bstack/compare/v0.2.1...v0.2.2) (2026-08-21)
 
 
