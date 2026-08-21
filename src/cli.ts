@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "node:util";
+import packageJson from "../package.json";
 import { NodeCommandRunner } from "./command";
 import { checkoutStack } from "./checkout";
 import { GitRepository } from "./git";
@@ -21,6 +22,7 @@ Options:
   --dry-run          Inspect the stack without rewriting commits or pushing
   --quiet            Hide progress logs; the final summary is still printed
   --same-base        Refuse checkout if it would change the current merge base
+  -v, --version      Show the installed version
   -h, --help         Show this help
 `;
 
@@ -35,12 +37,17 @@ function main(): void {
       "dry-run": { type: "boolean", default: false },
       quiet: { type: "boolean", default: false },
       "same-base": { type: "boolean", default: false },
+      version: { type: "boolean", short: "v", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
 
   if (values.help) {
     process.stdout.write(help);
+    return;
+  }
+  if (values.version) {
+    console.log(packageJson.version);
     return;
   }
   const runner = new NodeCommandRunner();
