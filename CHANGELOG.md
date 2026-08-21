@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/wsehl/bstack/compare/v0.1.0...v0.2.0) (2026-08-21)
+
+
+### Features
+
+* add version command ([30d77d1](https://github.com/wsehl/bstack/commit/30d77d1a14c7388892d1f0edf02f795c8ef0f996))
+
 ## 0.1.0 (2026-08-21)
 
 
