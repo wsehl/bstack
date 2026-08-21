@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/wsehl/bstack/compare/v1.0.2...v1.0.3) (2026-08-21)
+
+
+### Continuous Integration
+
+* add ci workflow and fix release workflow ([b8040f7](https://github.com/wsehl/bstack/commit/b8040f744bb1f1e7eb6140212301ffaefca860ad))
+
 ## [1.0.2](https://github.com/wsehl/bstack/compare/v1.0.1...v1.0.2) (2026-08-21)
 
 
