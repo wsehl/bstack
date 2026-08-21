@@ -105,6 +105,36 @@ export function syncStack(
         remote,
         options.open,
       );
+    } else if (evolution.kind === "rebuild") {
+      reporter.progress(
+        `Rebuilding stack #${evolution.stackNumber} to insert pull requests`,
+      );
+      github.unstack(evolution.stackNumber);
+      try {
+        github.linkStack(
+          changes.map((change) => change.remoteBranch),
+          base,
+          remote,
+          options.open,
+        );
+      } catch (error) {
+        reporter.progress(
+          "Rebuild failed; restoring the previous native GitHub stack",
+        );
+        try {
+          github.linkStack(
+            previous!.changes.map((change) => change.remoteBranch),
+            base,
+            remote,
+            false,
+          );
+        } catch (rollbackError) {
+          throw new Error(
+            `Stack rebuild failed: ${errorMessage(error)}\nRestoring the previous stack also failed: ${errorMessage(rollbackError)}`,
+          );
+        }
+        throw error;
+      }
     } else if (evolution.kind === "append") {
       reporter.progress(
         `Appending ${evolution.branches.length} pull request${evolution.branches.length === 1 ? "" : "s"} to stack #${evolution.stackNumber}`,
@@ -142,10 +172,12 @@ export function syncStack(
   }
 
   const stackNumber =
-    previous?.stackNumber ??
-    (pullRequests.length > 1
+    evolution.kind === "rebuild"
       ? github.stackNumberForPullRequest(pullRequests[0]!.number)
-      : undefined);
+      : (previous?.stackNumber ??
+        (pullRequests.length > 1
+          ? github.stackNumberForPullRequest(pullRequests[0]!.number)
+          : undefined));
   const synchronizedChanges = changes.map((change, index) => ({
     id: change.id,
     remoteBranch: change.remoteBranch,
@@ -181,6 +213,7 @@ export function syncStack(
 
 type Evolution =
   | { kind: "full" }
+  | { kind: "rebuild"; stackNumber: number }
   | { kind: "skip" }
   | { kind: "partial"; previousOffset: number }
   | { kind: "append"; stackNumber: number; branches: string[] };
@@ -196,7 +229,18 @@ function analyzeEvolution(
 
   // New commits may be inserted anywhere, but submitted commits must retain
   // their relative order so gh stack can update the existing PR chain safely.
-  if (isSubsequence(previousIds, currentIds)) return { kind: "full" };
+  if (isSubsequence(previousIds, currentIds)) {
+    const onlyAppended = previousIds.every(
+      (id, index) => currentIds[index] === id,
+    );
+    if (onlyAppended) return { kind: "full" };
+    const stackNumber =
+      previous.stackNumber ??
+      github.stackNumberForPullRequest(previous.changes[0]!.pullRequest);
+    return stackNumber === undefined
+      ? { kind: "full" }
+      : { kind: "rebuild", stackNumber };
+  }
 
   const firstCurrentIndex = previousIds.indexOf(currentIds[0]!);
   if (firstCurrentIndex === -1) {
@@ -251,6 +295,10 @@ function isSubsequence(
     if (value === expected[expectedIndex]) expectedIndex++;
   }
   return expectedIndex === expected.length;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function writeUpdatedState(

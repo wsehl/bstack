@@ -30,6 +30,7 @@ export interface GitHubPlatform {
     remote: string,
     open: boolean,
   ): void;
+  unstack(stackNumber: number): void;
   editPullRequest(pr: PullRequest, change: Change): void;
   stackNumberForPullRequest(prNumber: number): number | undefined;
   pullRequestHead(reference: string): string;
@@ -138,6 +139,10 @@ export class GhPlatform implements GitHubPlatform {
     if (open) args.push("--open");
     args.push(String(stackNumber), ...branches);
     this.gh(args);
+  }
+
+  unstack(stackNumber: number): void {
+    this.gh(["stack", "unstack", String(stackNumber)]);
   }
 
   editPullRequest(pr: PullRequest, change: Change): void {

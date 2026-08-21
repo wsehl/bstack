@@ -62,6 +62,10 @@ describe("stack sync", () => {
     expect(github.linkCalls.at(-1)).toEqual(
       updated.changes.map((change) => change.remoteBranch),
     );
+    expect(github.unstackCalls).toEqual([7]);
+    expect(reporter.messages).toContain(
+      "Rebuilding stack #7 to insert pull requests",
+    );
   });
 
   test("publishes remote-only branches and keeps PR identity after amend", () => {
@@ -201,6 +205,7 @@ class RecordingReporter implements Reporter {
 class FakeGitHub implements GitHubPlatform {
   readonly prs = new Map<string, PullRequest>();
   readonly linkCalls: string[][] = [];
+  readonly unstackCalls: number[] = [];
   private nextPr = 100;
 
   assertReady(): void {}
@@ -242,6 +247,10 @@ class FakeGitHub implements GitHubPlatform {
 
   appendToStack(_stackNumber: number, branches: readonly string[]): void {
     this.linkStack(branches);
+  }
+
+  unstack(stackNumber: number): void {
+    this.unstackCalls.push(stackNumber);
   }
 
   editPullRequest(pr: PullRequest, change: Change): void {
