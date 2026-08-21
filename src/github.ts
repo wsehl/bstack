@@ -17,18 +17,18 @@ export interface GitHubPlatform {
   defaultBranch(): string;
   pullRequestForBranch(branch: string): PullRequest | undefined;
   pullRequest(number: number): PullRequest;
-  createPullRequest(change: Change, base: string, open: boolean): PullRequest;
+  createPullRequest(change: Change, base: string, draft: boolean): PullRequest;
   linkStack(
     branches: readonly string[],
     base: string,
     remote: string,
-    open: boolean,
+    draft: boolean,
   ): void;
   appendToStack(
     stackNumber: number,
     branches: readonly string[],
     remote: string,
-    open: boolean,
+    draft: boolean,
   ): void;
   unstack(stackNumber: number): void;
   editPullRequest(pr: PullRequest, change: Change): void;
@@ -94,7 +94,7 @@ export class GhPlatform implements GitHubPlatform {
     return normalizePullRequest(JSON.parse(raw) as PullRequestJson);
   }
 
-  createPullRequest(change: Change, base: string, open: boolean): PullRequest {
+  createPullRequest(change: Change, base: string, draft: boolean): PullRequest {
     const args = [
       "pr",
       "create",
@@ -107,7 +107,7 @@ export class GhPlatform implements GitHubPlatform {
       "--body",
       change.body,
     ];
-    if (!open) args.push("--draft");
+    if (draft) args.push("--draft");
     this.gh(args);
     const created = this.pullRequestForBranch(change.remoteBranch);
     if (!created)
@@ -121,10 +121,10 @@ export class GhPlatform implements GitHubPlatform {
     branches: readonly string[],
     base: string,
     remote: string,
-    open: boolean,
+    draft: boolean,
   ): void {
     const args = ["stack", "link", "--base", base, "--remote", remote];
-    if (open) args.push("--open");
+    if (!draft) args.push("--open");
     args.push(...branches);
     this.gh(args);
   }
@@ -133,10 +133,10 @@ export class GhPlatform implements GitHubPlatform {
     stackNumber: number,
     branches: readonly string[],
     remote: string,
-    open: boolean,
+    draft: boolean,
   ): void {
     const args = ["stack", "link", "--remote", remote];
-    if (open) args.push("--open");
+    if (!draft) args.push("--open");
     args.push(String(stackNumber), ...branches);
     this.gh(args);
   }

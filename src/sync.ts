@@ -7,7 +7,7 @@ import { StateStore } from "./state";
 export type SyncOptions = {
   base: string | undefined;
   remote: string | undefined;
-  open: boolean;
+  draft: boolean;
   dryRun: boolean;
   reporter: Reporter;
 };
@@ -92,7 +92,7 @@ export function syncStack(
         : "Creating a pull request",
     );
     pullRequests = [
-      existing[0] ?? github.createPullRequest(changes[0]!, base, options.open),
+      existing[0] ?? github.createPullRequest(changes[0]!, base, options.draft),
     ];
   } else {
     if (evolution.kind === "full") {
@@ -103,7 +103,7 @@ export function syncStack(
         changes.map((change) => change.remoteBranch),
         base,
         remote,
-        options.open,
+        options.draft,
       );
     } else if (evolution.kind === "rebuild") {
       reporter.progress(
@@ -115,7 +115,7 @@ export function syncStack(
           changes.map((change) => change.remoteBranch),
           base,
           remote,
-          options.open,
+          options.draft,
         );
       } catch (error) {
         reporter.progress(
@@ -126,7 +126,7 @@ export function syncStack(
             previous!.changes.map((change) => change.remoteBranch),
             base,
             remote,
-            false,
+            true,
           );
         } catch (rollbackError) {
           throw new Error(
@@ -143,7 +143,7 @@ export function syncStack(
         evolution.stackNumber,
         evolution.branches,
         remote,
-        options.open,
+        options.draft,
       );
     } else if (evolution.kind === "partial") {
       reporter.progress(

@@ -31,7 +31,7 @@ describe("stack sync", () => {
     const options = {
       base: "main",
       remote: "origin",
-      open: false,
+      draft: false,
       dryRun: false,
       reporter,
     } as const;
@@ -80,13 +80,16 @@ describe("stack sync", () => {
     const first = syncStack(repository, github, {
       base: "main",
       remote: "origin",
-      open: false,
+      draft: false,
       dryRun: false,
       reporter,
     });
 
     expect(first.rewritten).toBe(true);
     expect(first.changes).toHaveLength(2);
+    expect(first.changes.every((change) => !change.pullRequest?.isDraft)).toBe(
+      true,
+    );
     expect(
       git(fixture.worktree, "branch", "--format=%(refname:short)")
         .stdout.trim()
@@ -132,7 +135,7 @@ describe("stack sync", () => {
     const checkedOutPrefix = syncStack(repository, github, {
       base: "main",
       remote: "origin",
-      open: false,
+      draft: false,
       dryRun: false,
       reporter,
     });
@@ -149,7 +152,7 @@ describe("stack sync", () => {
     const second = syncStack(repository, github, {
       base: "main",
       remote: "origin",
-      open: false,
+      draft: false,
       dryRun: false,
       reporter,
     });
@@ -183,7 +186,7 @@ describe("stack sync", () => {
     const afterMerge = syncStack(repository, github, {
       base: "main",
       remote: "origin",
-      open: false,
+      draft: false,
       dryRun: false,
       reporter,
     });
@@ -226,27 +229,44 @@ class FakeGitHub implements GitHubPlatform {
     return pr;
   }
 
-  createPullRequest(change: Change): PullRequest {
-    return this.create(change);
+  createPullRequest(
+    change: Change,
+    _base: string,
+    draft: boolean,
+  ): PullRequest {
+    return this.create(change, draft);
   }
 
-  linkStack(branches: readonly string[]): void {
+  linkStack(
+    branches: readonly string[],
+    _base: string,
+    _remote: string,
+    draft: boolean,
+  ): void {
     this.linkCalls.push([...branches]);
     for (const branch of branches) {
       if (!this.prs.has(branch)) {
-        this.create({
-          id: branch,
-          oid: "",
-          subject: branch,
-          body: "",
-          remoteBranch: branch,
-        });
+        this.create(
+          {
+            id: branch,
+            oid: "",
+            subject: branch,
+            body: "",
+            remoteBranch: branch,
+          },
+          draft,
+        );
       }
     }
   }
 
-  appendToStack(_stackNumber: number, branches: readonly string[]): void {
-    this.linkStack(branches);
+  appendToStack(
+    _stackNumber: number,
+    branches: readonly string[],
+    remote: string,
+    draft: boolean,
+  ): void {
+    this.linkStack(branches, "", remote, draft);
   }
 
   unstack(stackNumber: number): void {
@@ -280,14 +300,14 @@ class FakeGitHub implements GitHubPlatform {
     throw new Error("Unexpected checkout delegation");
   }
 
-  private create(change: Change): PullRequest {
+  private create(change: Change, draft: boolean): PullRequest {
     const pr = {
       number: this.nextPr++,
       url: `https://example.test/pull/${this.nextPr}`,
       state: "OPEN" as const,
       title: change.subject,
       body: change.body,
-      isDraft: true,
+      isDraft: draft,
     };
     this.prs.set(change.remoteBranch, pr);
     return pr;

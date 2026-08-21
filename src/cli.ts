@@ -18,7 +18,7 @@ Usage:
 Options:
   --base <branch>    Stack trunk; defaults to the GitHub default branch
   --remote <name>    Git remote; defaults to remote.pushDefault or origin
-  --open             Create PRs ready for review instead of drafts
+  --draft            Create draft PRs instead of ready-for-review PRs
   --dry-run          Inspect the stack without rewriting commits or pushing
   --quiet            Hide progress logs; the final summary is still printed
   --same-base        Refuse checkout if it would change the current merge base
@@ -33,7 +33,7 @@ function main(): void {
     options: {
       base: { type: "string" },
       remote: { type: "string" },
-      open: { type: "boolean", default: false },
+      draft: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
       quiet: { type: "boolean", default: false },
       "same-base": { type: "boolean", default: false },
@@ -84,7 +84,7 @@ function main(): void {
   const result = syncStack(repository, github, {
     base: values.base,
     remote: values.remote,
-    open: values.open,
+    draft: values.draft,
     dryRun: values["dry-run"],
     reporter,
   });
