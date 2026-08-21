@@ -30,8 +30,15 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/setup@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
         with:
-          runtime: node@24
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Publish to npm
         run: npm publish
