@@ -1,12 +1,12 @@
 import type { CommandRunner } from "./command";
 import {
   addChangeId,
-  newChangeId,
+  generateChangeId,
   parseRawCommit,
   rewriteCommit,
   splitCommitMessage,
-} from "./identity";
-import type { Change, Commit } from "./model";
+} from "./commit";
+import type { Commit, StackChange } from "./model";
 
 export class GitRepository {
   constructor(
@@ -26,7 +26,7 @@ export class GitRepository {
     const status = this.git(["status", "--porcelain"]).stdout;
     if (status.trim()) {
       throw new Error(
-        "The working tree must be clean before bstack rewrites or publishes commits",
+        "The working tree must be clean before bstack rewrites commits or pushes branches",
       );
     }
   }
@@ -122,8 +122,10 @@ export class GitRepository {
     commits: readonly Commit[],
     dryRun: boolean,
     userLogin: string,
-  ): Change[] {
-    const assigned = commits.map((commit) => commit.changeId ?? newChangeId());
+  ): StackChange[] {
+    const assigned = commits.map(
+      (commit) => commit.changeId ?? generateChangeId(),
+    );
     const needsRewrite = commits.some(
       (commit) => commit.changeId === undefined,
     );
@@ -187,7 +189,7 @@ export class GitRepository {
     );
   }
 
-  pushChanges(remote: string, changes: readonly Change[]): void {
+  pushChanges(remote: string, changes: readonly StackChange[]): void {
     const existing = this.remoteBranchOids(
       remote,
       changes.map((change) => change.remoteBranch),

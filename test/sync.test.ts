@@ -7,7 +7,7 @@ import { NodeCommandRunner } from "../src/command";
 import { checkoutStack } from "../src/checkout";
 import { GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
-import type { Change, PullRequest } from "../src/model";
+import type { PullRequest, StackChange } from "../src/model";
 import type { Reporter } from "../src/reporter";
 import { StateStore } from "../src/state";
 import { syncStack } from "../src/sync";
@@ -382,7 +382,7 @@ class FakeGitHub implements GitHubPlatform {
   }
 
   createPullRequest(
-    change: Change,
+    change: StackChange,
     _base: string,
     draft: boolean,
   ): PullRequest {
@@ -429,7 +429,7 @@ class FakeGitHub implements GitHubPlatform {
     this.baseEditCalls.push({ pullRequest: pr.number, base });
   }
 
-  editPullRequest(pr: PullRequest, change: Change): void {
+  editPullRequest(pr: PullRequest, change: StackChange): void {
     const current = this.prs.get(change.remoteBranch);
     if (current) {
       this.prs.set(change.remoteBranch, {
@@ -459,7 +459,7 @@ class FakeGitHub implements GitHubPlatform {
     throw new Error("Unexpected checkout delegation");
   }
 
-  private create(change: Change, draft: boolean): PullRequest {
+  private create(change: StackChange, draft: boolean): PullRequest {
     const pr = {
       number: this.nextPr++,
       url: `https://example.test/pull/${this.nextPr}`,

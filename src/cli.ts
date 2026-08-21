@@ -5,18 +5,18 @@ import packageJson from "../package.json";
 import { NodeCommandRunner } from "./command";
 import { checkoutStack } from "./checkout";
 import { GitRepository } from "./git";
-import { GhPlatform } from "./github";
+import { GitHubCliPlatform } from "./github";
 import { ConsoleReporter } from "./reporter";
 import { syncStack } from "./sync";
 
-const help = `bstack - turn a linear commit series into native GitHub stacked PRs
+const help = `bstack - turn a linear commit series into a native GitHub stack of PRs
 
 Usage:
   bstack [sync] [options]
   bstack checkout <PR-number-or-URL> [options]
 
 Options:
-  --base <branch>    Stack trunk; defaults to the GitHub default branch
+  --base <branch>    Stack base; defaults to the GitHub default branch
   --remote <name>    Git remote; defaults to remote.pushDefault or origin
   --draft            Create draft PRs instead of ready-for-review PRs
   --dry-run          Inspect the stack without rewriting commits or pushing
@@ -53,7 +53,7 @@ function main(): void {
   const runner = new NodeCommandRunner();
   const cwd = process.cwd();
   const repository = new GitRepository(cwd, runner);
-  const github = new GhPlatform(cwd, runner);
+  const github = new GitHubCliPlatform(cwd, runner);
   const reporter = new ConsoleReporter(!values.quiet);
   const command = positionals[0] ?? "sync";
 
@@ -90,7 +90,7 @@ function main(): void {
   });
 
   console.log(
-    `${values["dry-run"] ? "Would publish" : "Published"} ${result.changes.length} change${result.changes.length === 1 ? "" : "s"} against ${result.base}:`,
+    `${values["dry-run"] ? "Would sync" : "Synced"} ${result.changes.length} change${result.changes.length === 1 ? "" : "s"} against ${result.base}:`,
   );
   for (const change of result.changes) {
     const destination = change.pullRequest ? ` ${change.pullRequest.url}` : "";

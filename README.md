@@ -1,6 +1,6 @@
 # bstack
 
-Convert series of commits in a local branch into native GitHub stacked pull requests.
+Convert a series of commits in a local branch into a native GitHub stack of pull requests.
 
 ## Install
 
@@ -17,7 +17,7 @@ gh extension install github/gh-stack
 
 ## Use
 
-Create one commit per change, then publish the stack:
+Create one commit per change, then sync the stack:
 
 ```bash
 git switch -c my-feature
@@ -37,7 +37,7 @@ bstack checkout 123
 bstack checkout https://github.com/owner/repo/pull/123
 ```
 
-Use `--dry-run` to inspect without publishing and `--quiet` to hide progress logs.
+Use `--dry-run` to inspect without syncing and `--quiet` to hide progress logs.
 
 ## References
 

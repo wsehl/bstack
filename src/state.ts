@@ -1,9 +1,9 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
-import type { BstackState, StoredStack } from "./model";
+import type { RepositoryState, StoredStack } from "./model";
 
-const emptyState = (): BstackState => ({ schemaVersion: 1, stacks: [] });
+const emptyState = (): RepositoryState => ({ schemaVersion: 1, stacks: [] });
 
 const storedChangeSchema = z.object({
   id: z.string(),
@@ -27,7 +27,7 @@ const stateSchema = z.object({
 export class StateStore {
   constructor(private readonly path: string) {}
 
-  read(): BstackState {
+  read(): RepositoryState {
     try {
       const parsed = stateSchema.parse(
         JSON.parse(readFileSync(this.path, "utf8")),
@@ -61,7 +61,7 @@ export class StateStore {
     }
   }
 
-  write(state: BstackState): void {
+  write(state: RepositoryState): void {
     mkdirSync(dirname(this.path), { recursive: true });
     const temporary = `${this.path}.tmp`;
     writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`);
@@ -69,7 +69,7 @@ export class StateStore {
   }
 
   findByChangeIds(
-    state: BstackState,
+    state: RepositoryState,
     ids: ReadonlySet<string>,
   ): StoredStack | undefined {
     const matches = state.stacks.filter((stack) =>

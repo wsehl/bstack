@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { CommandRunner } from "./command";
-import type { Change, PullRequest } from "./model";
+import type { PullRequest, StackChange } from "./model";
 
 const pullRequestSchema = z.object({
   number: z.number(),
@@ -19,7 +19,11 @@ export interface GitHubPlatform {
   defaultBranch(): string;
   pullRequestForBranch(branch: string): PullRequest | undefined;
   pullRequest(number: number): PullRequest;
-  createPullRequest(change: Change, base: string, draft: boolean): PullRequest;
+  createPullRequest(
+    change: StackChange,
+    base: string,
+    draft: boolean,
+  ): PullRequest;
   linkStack(
     branches: readonly string[],
     base: string,
@@ -34,13 +38,13 @@ export interface GitHubPlatform {
   ): void;
   unstack(stackNumber: number): void;
   editPullRequestBase(pr: PullRequest, base: string): void;
-  editPullRequest(pr: PullRequest, change: Change): void;
+  editPullRequest(pr: PullRequest, change: StackChange): void;
   stackNumberForPullRequest(prNumber: number): number | undefined;
   pullRequestHead(reference: string): string;
   checkoutPullRequest(reference: string): void;
 }
 
-export class GhPlatform implements GitHubPlatform {
+export class GitHubCliPlatform implements GitHubPlatform {
   constructor(
     private readonly cwd: string,
     private readonly runner: CommandRunner,
@@ -104,7 +108,11 @@ export class GhPlatform implements GitHubPlatform {
     return pullRequestSchema.parse(JSON.parse(raw));
   }
 
-  createPullRequest(change: Change, base: string, draft: boolean): PullRequest {
+  createPullRequest(
+    change: StackChange,
+    base: string,
+    draft: boolean,
+  ): PullRequest {
     const args = [
       "pr",
       "create",
@@ -166,7 +174,7 @@ export class GhPlatform implements GitHubPlatform {
     this.gh(["pr", "edit", String(pr.number), "--base", base]);
   }
 
-  editPullRequest(pr: PullRequest, change: Change): void {
+  editPullRequest(pr: PullRequest, change: StackChange): void {
     if (pr.title === change.subject && pr.body === change.body) {
       return;
     }

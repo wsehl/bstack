@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Commit } from "./model";
 
-const trailerPattern = /^bstack-id:\s*(\S+)\s*$/gm;
+const CHANGE_ID_TRAILER = "bstack-id";
+const changeIdTrailerPattern = new RegExp(
+  `^${CHANGE_ID_TRAILER}:\\s*(\\S+)\\s*$`,
+  "gm",
+);
+const changeIdTrailerLinePattern = new RegExp(
+  `^${CHANGE_ID_TRAILER}:\\s*\\S+\\s*$`,
+);
 
 type CommitMessage = {
   subject: string;
@@ -9,19 +16,21 @@ type CommitMessage = {
 };
 
 export function readChangeId(message: string): string | undefined {
-  const matches = [...message.matchAll(trailerPattern)];
+  const matches = [...message.matchAll(changeIdTrailerPattern)];
   if (matches.length > 1) {
-    throw new Error("A commit contains more than one bstack-id trailer");
+    throw new Error(
+      `A commit contains more than one ${CHANGE_ID_TRAILER} trailer`,
+    );
   }
   return matches[0]?.[1];
 }
 
 export function addChangeId(message: string, changeId: string): string {
   const trimmed = message.trimEnd();
-  return `${trimmed}\n\nbstack-id: ${changeId}\n`;
+  return `${trimmed}\n\n${CHANGE_ID_TRAILER}: ${changeId}\n`;
 }
 
-export function newChangeId(): string {
+export function generateChangeId(): string {
   return randomUUID().replaceAll("-", "");
 }
 
@@ -81,7 +90,7 @@ export function rewriteCommit(
 export function splitCommitMessage(message: string): CommitMessage {
   const withoutIdentity = message
     .split("\n")
-    .filter((line) => !/^bstack-id:\s*\S+\s*$/.test(line))
+    .filter((line) => !changeIdTrailerLinePattern.test(line))
     .join("\n")
     .trim();
   const [subject = "Untitled change", ...bodyLines] =

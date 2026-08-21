@@ -7,7 +7,7 @@ export type Commit = {
   changeId: string | undefined;
 };
 
-export type Change = {
+export type StackChange = {
   id: string;
   oid: string;
   subject: string;
@@ -38,7 +38,7 @@ export type StoredStack = {
   changes: StoredChange[];
 };
 
-export type BstackState = {
+export type RepositoryState = {
   schemaVersion: 1;
   stacks: StoredStack[];
 };

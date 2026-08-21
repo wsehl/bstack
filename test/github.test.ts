@@ -4,13 +4,13 @@ import type {
   CommandResult,
   CommandRunner,
 } from "../src/command";
-import { GhPlatform } from "../src/github";
-import type { Change } from "../src/model";
+import { GitHubCliPlatform } from "../src/github";
+import type { StackChange } from "../src/model";
 
 describe("pull request visibility", () => {
   test("creates ready pull requests by default and drafts when requested", () => {
     const runner = new RecordingRunner();
-    const github = new GhPlatform("/repo", runner);
+    const github = new GitHubCliPlatform("/repo", runner);
 
     expect(github.currentUserLogin()).toBe("wsehl");
     github.createPullRequest(change, "main", false);
@@ -51,7 +51,7 @@ describe("pull request visibility", () => {
   });
 });
 
-const change: Change = {
+const change: StackChange = {
   id: "one",
   oid: "abc",
   subject: "Add one",

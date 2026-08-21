@@ -1,6 +1,11 @@
 import type { GitRepository } from "./git";
 import type { GitHubPlatform } from "./github";
-import type { BstackState, Change, PullRequest, StoredStack } from "./model";
+import type {
+  PullRequest,
+  RepositoryState,
+  StackChange,
+  StoredStack,
+} from "./model";
 import type { Reporter } from "./reporter";
 import { StateStore } from "./state";
 
@@ -16,7 +21,7 @@ export type SyncResult = {
   base: string;
   remote: string;
   rewritten: boolean;
-  changes: Array<Change & { pullRequest?: PullRequest }>;
+  changes: Array<StackChange & { pullRequest?: PullRequest }>;
 };
 
 export function syncStack(
@@ -83,7 +88,7 @@ export function syncStack(
   );
 
   reporter.progress(
-    `Publishing ${changes.length} protected remote ref${changes.length === 1 ? "" : "s"}`,
+    `Pushing ${changes.length} remote branch${changes.length === 1 ? "" : "es"}`,
   );
   repository.pushChanges(remote, changes);
 
@@ -202,15 +207,15 @@ export function syncStack(
           ...previous.changes.slice(evolution.previousOffset + changes.length),
         ]
       : synchronizedChanges;
-  const stored: StoredStack = {
+  const updatedStack: StoredStack = {
     remote,
     base,
     changes: storedChanges,
   };
   if (stackNumber !== undefined) {
-    stored.stackNumber = stackNumber;
+    updatedStack.stackNumber = stackNumber;
   }
-  writeUpdatedState(store, state, previous, stored);
+  writeUpdatedState(store, state, previous, updatedStack);
   reporter.progress("Saved the local stack state");
 
   return {
@@ -224,7 +229,7 @@ export function syncStack(
   };
 }
 
-type Evolution =
+type StackTransition =
   | { kind: "full" }
   | {
       kind: "rebuild";
@@ -238,10 +243,10 @@ type Evolution =
 
 function analyzeEvolution(
   previous: StoredStack | undefined,
-  changes: readonly Change[],
+  changes: readonly StackChange[],
   github: GitHubPlatform,
   preserveHigherChanges: boolean,
-): Evolution {
+): StackTransition {
   if (!previous) {
     return { kind: "full" };
   }
@@ -252,7 +257,7 @@ function analyzeEvolution(
   const sharedPrevious = previousIds.filter((id) => currentIdSet.has(id));
   const sharedCurrent = currentIds.filter((id) => previousIdSet.has(id));
 
-  if (!sameValues(sharedPrevious, sharedCurrent)) {
+  if (!sameSequence(sharedPrevious, sharedCurrent)) {
     throw new Error(
       "Submitted commits cannot be reordered. Restore their original relative order before syncing",
     );
@@ -347,7 +352,7 @@ function analyzeEvolution(
   };
 }
 
-function sameValues(
+function sameSequence(
   left: readonly string[],
   right: readonly string[],
 ): boolean {
@@ -391,7 +396,7 @@ function restorePreviousStack(
 
 function writeUpdatedState(
   store: StateStore,
-  state: BstackState,
+  state: RepositoryState,
   previous: StoredStack | undefined,
   updated: StoredStack,
 ): void {

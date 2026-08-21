@@ -61,7 +61,7 @@ export function checkoutStack(
   reporter.progress(`Checking out ${remote}/${headRef} in detached HEAD state`);
   repository.checkout(target);
   reporter.progress(
-    "Checkout complete; amend the commits and run bstack to publish updates",
+    "Checkout complete; amend the commits and run bstack to sync updates",
   );
   return { headRef, delegated: false };
 }

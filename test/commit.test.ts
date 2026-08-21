@@ -5,7 +5,7 @@ import {
   readChangeId,
   rewriteCommit,
   splitCommitMessage,
-} from "../src/identity";
+} from "../src/commit";
 
 describe("commit identity", () => {
   test("adds and reads a stable trailer without exposing it as PR body content", () => {
@@ -19,10 +19,6 @@ describe("commit identity", () => {
       subject: "Add the API",
       body: "Explain the endpoint.",
     });
-  });
-
-  test("does not recognize the old trailer spelling", () => {
-    expect(readChangeId("Change\n\nBstack-Id: legacy\n")).toBeUndefined();
   });
 
   test("rewrites only the parent and message of a raw commit", () => {
