@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import {
   addChangeId,
   parseRawCommit,
@@ -45,6 +45,6 @@ describe("commit identity", () => {
       "parent dddddddddddddddddddddddddddddddddddddddd",
     );
     expect(rewritten).toContain("author Ada <ada@example.com> 1 +0000");
-    expect(rewritten).toEndWith("Bstack-Id: stable\n");
+    expect(rewritten.endsWith("Bstack-Id: stable\n")).toBe(true);
   });
 });

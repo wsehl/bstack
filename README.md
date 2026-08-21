@@ -1,14 +1,17 @@
 # bstack
 
-`bstack` turns a series of commits in local branch into native GitHub stacked separate pull requests.
+`bstack` turns a series of commits on a local branch into native GitHub stacked pull requests.
 
 ## Install
 
-Requirements: Bun, Git, an authenticated GitHub CLI, and the `github/gh-stack` extension.
+Requirements:
+
+- Node.js 20+
+- `gh cli` plus the `github/gh-stack` extension (authenticated)
 
 ```bash
 gh extension install github/gh-stack
-bun install --global bstack
+npm install bstack -g
 ```
 
 ## Use
@@ -17,8 +20,8 @@ Create one commit per reviewable change, then publish the stack:
 
 ```bash
 git switch -c my-feature
-git commit -am "Add the model"
-git commit -am "Add the API"
+git commit -am "feat: add the model"
+git commit -am "feat: add the API"
 bstack
 ```
 
@@ -34,3 +37,21 @@ bstack checkout https://github.com/owner/repo/pull/123
 The first publish adds a stable `Bstack-Id` trailer to each commit and rewrites their hashes. The working tree must be clean. Merge commits and signed commits that need trailers are not supported.
 
 Use `--dry-run` to inspect without publishing and `--quiet` to hide progress logs.
+
+## Develop
+
+Install dependencies and run the checks with pnpm:
+
+```bash
+pnpm install
+pnpm run type-check
+pnpm test
+pnpm run lint
+```
+
+Build the Node.js CLI with tsdown:
+
+```bash
+pnpm run build
+node dist/bstack.js --help
+```

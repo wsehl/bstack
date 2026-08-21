@@ -1,7 +1,7 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import { parseArgs } from "node:util";
-import { BunCommandRunner } from "./command";
+import { NodeCommandRunner } from "./command";
 import { checkoutStack } from "./checkout";
 import { GitRepository } from "./git";
 import { GhPlatform } from "./github";
@@ -26,7 +26,7 @@ Options:
 
 function main(): void {
   const { values, positionals } = parseArgs({
-    args: Bun.argv.slice(2),
+    args: process.argv.slice(2),
     allowPositionals: true,
     options: {
       base: { type: "string" },
@@ -43,7 +43,7 @@ function main(): void {
     process.stdout.write(help);
     return;
   }
-  const runner = new BunCommandRunner();
+  const runner = new NodeCommandRunner();
   const cwd = process.cwd();
   const repository = new GitRepository(cwd, runner);
   const github = new GhPlatform(cwd, runner);

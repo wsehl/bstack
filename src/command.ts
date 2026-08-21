@@ -27,19 +27,17 @@ export interface CommandRunner {
   run(command: readonly string[], options: CommandOptions): CommandResult;
 }
 
-export class BunCommandRunner implements CommandRunner {
+export class NodeCommandRunner implements CommandRunner {
   run(command: readonly string[], options: CommandOptions): CommandResult {
     const [executable, ...args] = command;
     if (!executable) {
       throw new Error("Cannot run an empty command");
     }
 
-    const result = Bun.spawnSync([executable, ...args], {
+    const result = spawnSync(executable, args, {
       cwd: options.cwd,
-      stdin:
-        options.stdin === undefined ? undefined : Buffer.from(options.stdin),
-      stdout: "pipe",
-      stderr: "pipe",
+      input: options.stdin,
+      encoding: "utf8",
       env:
         options.env === undefined
           ? process.env
@@ -47,9 +45,9 @@ export class BunCommandRunner implements CommandRunner {
     });
 
     const commandResult = {
-      stdout: result.stdout.toString(),
-      stderr: result.stderr.toString(),
-      exitCode: result.exitCode,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? result.error?.message ?? "",
+      exitCode: result.status ?? 1,
     };
 
     if (commandResult.exitCode !== 0 && !options.allowFailure) {
@@ -59,3 +57,4 @@ export class BunCommandRunner implements CommandRunner {
     return commandResult;
   }
 }
+import { spawnSync } from "node:child_process";

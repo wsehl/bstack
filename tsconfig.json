@@ -8,7 +8,7 @@
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "types": ["bun"]
+    "types": ["node", "vitest/globals"]
   },
   "include": ["src", "test"]
 }

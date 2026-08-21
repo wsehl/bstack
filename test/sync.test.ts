@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BunCommandRunner } from "../src/command";
+import { NodeCommandRunner } from "../src/command";
 import { checkoutStack } from "../src/checkout";
 import { GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
@@ -25,7 +26,7 @@ describe("stack sync", () => {
     const reporter = new RecordingReporter();
     const repository = new GitRepository(
       fixture.worktree,
-      new BunCommandRunner(),
+      new NodeCommandRunner(),
     );
 
     const first = syncStack(repository, github, {
@@ -268,23 +269,21 @@ function git(
   cwd: string,
   ...args: string[]
 ): { stdout: string; exitCode: number } {
-  const result = Bun.spawnSync(["git", ...args], {
+  const result = spawnSync("git", args, {
     cwd,
-    stdout: "pipe",
-    stderr: "pipe",
+    encoding: "utf8",
   });
-  if (result.exitCode !== 0) throw new Error(result.stderr.toString());
-  return { stdout: result.stdout.toString(), exitCode: result.exitCode };
+  if (result.status !== 0) throw new Error(result.stderr);
+  return { stdout: result.stdout, exitCode: result.status };
 }
 
 function gitAllowFailure(
   cwd: string,
   ...args: string[]
 ): { stdout: string; exitCode: number } {
-  const result = Bun.spawnSync(["git", ...args], {
+  const result = spawnSync("git", args, {
     cwd,
-    stdout: "pipe",
-    stderr: "pipe",
+    encoding: "utf8",
   });
-  return { stdout: result.stdout.toString(), exitCode: result.exitCode };
+  return { stdout: result.stdout, exitCode: result.status ?? 1 };
 }
