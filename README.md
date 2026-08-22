@@ -37,7 +37,7 @@ bstack checkout 123
 bstack checkout https://github.com/owner/repo/pull/123
 ```
 
-Use `--dry-run` to inspect without syncing and `--quiet` to hide progress logs.
+Use `--dry-run` to inspect without syncing. Pass `--verbose` to print every command before it runs.
 
 ## References
 
