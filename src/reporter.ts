@@ -5,11 +5,11 @@ export interface Reporter {
 }
 
 export class ConsoleReporter implements Reporter {
-  progress(message: string): void {
+  progress(message: string) {
     process.stderr.write(`[bstack] ${message}\n`);
   }
 
-  command(command: readonly string[]): void {
+  command(command: readonly string[]) {
     this.progress(`$ ${formatCommand(command)}`);
   }
 }

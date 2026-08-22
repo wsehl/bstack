@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type {
-  CommandOptions,
-  CommandResult,
-  CommandRunner,
-} from "../src/command";
+import type { CommandOptions, CommandRunner } from "../src/command";
 import { GitHubCliPlatform } from "../src/github";
 import type { StackChange } from "../src/model";
 
@@ -62,7 +58,7 @@ const change: StackChange = {
 class RecordingRunner implements CommandRunner {
   readonly commands: string[][] = [];
 
-  run(command: readonly string[], _options: CommandOptions): CommandResult {
+  run(command: readonly string[], _options: CommandOptions) {
     this.commands.push([...command]);
     const isList = command[1] === "pr" && command[2] === "list";
     const isCurrentUser = command[1] === "api" && command[2] === "user";

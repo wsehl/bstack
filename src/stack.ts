@@ -41,11 +41,11 @@ export class Stack {
     }
   }
 
-  static fromChanges(changes: readonly StackChange[]): Stack {
+  static fromChanges(changes: readonly StackChange[]) {
     return new Stack(changes);
   }
 
-  static fromCommits(commits: readonly Commit[], userLogin: string): Stack {
+  static fromCommits(commits: readonly Commit[], userLogin: string) {
     const ids = commits.map((commit) => commit.changeId ?? generateChangeId());
     const rewritten = commits.some((commit) => commit.changeId === undefined);
     const rewrites = rewritten
@@ -72,7 +72,7 @@ export class Stack {
     return new Stack(changes, rewritten, rewrites);
   }
 
-  writeChangeIds(repository: GitRepository): Stack {
+  writeChangeIds(repository: GitRepository) {
     if (!this.rewritten) {
       return this;
     }
@@ -91,7 +91,7 @@ export class Stack {
     return new Stack(changes, true);
   }
 
-  findPrevious(state: RepositoryState): StoredStack | undefined {
+  findPrevious(state: RepositoryState) {
     const ids = new Set(this.changes.map((change) => change.id));
     const matches = state.stacks.filter((stack) =>
       stack.changes.some((change) => ids.has(change.id)),
@@ -109,9 +109,9 @@ export class Stack {
   transitionFrom(
     previous: StoredStack | undefined,
     options: StackTransitionOptions,
-  ): StackTransition {
+  ) {
     if (!previous) {
-      return { kind: "full" };
+      return { kind: "full" } satisfies StackTransition;
     }
     const previousIds = previous.changes.map((change) => change.id);
     const currentIds = this.changes.map((change) => change.id);
@@ -138,7 +138,7 @@ export class Stack {
         (id, index) => currentIds[index] === id,
       );
       if (onlyAppended) {
-        return { kind: "full" };
+        return { kind: "full" } satisfies StackTransition;
       }
       const stackNumber =
         previous.stackNumber ??
@@ -147,8 +147,12 @@ export class Stack {
         );
 
       return stackNumber === undefined
-        ? { kind: "full" }
-        : { kind: "rebuild", stackNumber, action: "insert" };
+        ? ({ kind: "full" } satisfies StackTransition)
+        : ({
+            kind: "rebuild",
+            stackNumber,
+            action: "insert",
+          } satisfies StackTransition);
     }
 
     const firstCurrentIndex = previousIds.indexOf(currentIds[0]!);
@@ -169,7 +173,10 @@ export class Stack {
           options.lookups.pullRequestState(change.pullRequest) === "MERGED",
       );
       if (prefixWasMerged) {
-        return { kind: "partial", previousOffset: firstCurrentIndex };
+        return {
+          kind: "partial",
+          previousOffset: firstCurrentIndex,
+        } satisfies StackTransition;
       }
     }
 
@@ -191,7 +198,7 @@ export class Stack {
         .every((id) => !previousIdSet.has(id));
 
     if (removedPrefixWasMerged && added.length === 0) {
-      return { kind: "skip" };
+      return { kind: "skip" } satisfies StackTransition;
     }
     if (onlyAppendedAfterMergedPrefix) {
       if (previous.stackNumber === undefined) {
@@ -204,7 +211,7 @@ export class Stack {
         kind: "append",
         stackNumber: previous.stackNumber,
         branches: added.map((change) => change.remoteBranch),
-      };
+      } satisfies StackTransition;
     }
 
     const stackNumber =
@@ -218,14 +225,14 @@ export class Stack {
       );
     }
     if (this.changes.length === 1) {
-      return { kind: "collapse", stackNumber };
+      return { kind: "collapse", stackNumber } satisfies StackTransition;
     }
 
     return {
       kind: "rebuild",
       stackNumber,
       action: added.length === 0 ? "remove" : "update",
-    };
+    } satisfies StackTransition;
   }
 }
 

@@ -32,7 +32,7 @@ export interface StateStore {
 export class FileStateStore implements StateStore {
   constructor(private readonly path: string) {}
 
-  read(): RepositoryState {
+  read() {
     try {
       const parsed = v.parse(
         stateSchema,
@@ -51,7 +51,7 @@ export class FileStateStore implements StateStore {
         return stored;
       });
 
-      return { schemaVersion: 1, stacks };
+      return { schemaVersion: 1, stacks } satisfies RepositoryState;
     } catch (error) {
       if (
         error instanceof Error &&
@@ -71,7 +71,7 @@ export class FileStateStore implements StateStore {
     }
   }
 
-  write(state: RepositoryState): void {
+  write(state: RepositoryState) {
     mkdirSync(dirname(this.path), { recursive: true });
     const temporary = `${this.path}.tmp`;
     writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`);

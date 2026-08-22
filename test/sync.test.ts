@@ -347,7 +347,7 @@ describe("stack sync", () => {
 class RecordingReporter implements Reporter {
   readonly messages: string[] = [];
 
-  progress(message: string): void {
+  progress(message: string) {
     this.messages.push(message);
   }
 }
@@ -359,21 +359,21 @@ class FakeGitHub implements GitHubPlatform {
   readonly baseEditCalls: Array<{ pullRequest: number; base: string }> = [];
   private nextPr = 100;
 
-  assertReady(): void {}
+  assertReady() {}
 
-  currentUserLogin(): string {
+  currentUserLogin() {
     return "test-user";
   }
 
-  defaultBranch(): string {
+  defaultBranch() {
     return "main";
   }
 
-  pullRequestForBranch(branch: string): PullRequest | undefined {
+  pullRequestForBranch(branch: string) {
     return this.prs.get(branch);
   }
 
-  pullRequest(number: number): PullRequest {
+  pullRequest(number: number) {
     const pr = [...this.prs.values()].find(
       (candidate) => candidate.number === number,
     );
@@ -383,11 +383,7 @@ class FakeGitHub implements GitHubPlatform {
     return pr;
   }
 
-  createPullRequest(
-    change: StackChange,
-    _base: string,
-    draft: boolean,
-  ): PullRequest {
+  createPullRequest(change: StackChange, _base: string, draft: boolean) {
     return this.create(change, draft);
   }
 
@@ -396,7 +392,7 @@ class FakeGitHub implements GitHubPlatform {
     _base: string,
     _remote: string,
     draft: boolean,
-  ): void {
+  ) {
     this.linkCalls.push([...branches]);
     for (const branch of branches) {
       if (!this.prs.has(branch)) {
@@ -419,19 +415,19 @@ class FakeGitHub implements GitHubPlatform {
     branches: readonly string[],
     remote: string,
     draft: boolean,
-  ): void {
+  ) {
     this.linkStack(branches, "", remote, draft);
   }
 
-  unstack(stackNumber: number): void {
+  unstack(stackNumber: number) {
     this.unstackCalls.push(stackNumber);
   }
 
-  editPullRequestBase(pr: PullRequest, base: string): void {
+  editPullRequestBase(pr: PullRequest, base: string) {
     this.baseEditCalls.push({ pullRequest: pr.number, base });
   }
 
-  editPullRequest(pr: PullRequest, change: StackChange): void {
+  editPullRequest(pr: PullRequest, change: StackChange) {
     const current = this.prs.get(change.remoteBranch);
     if (current) {
       this.prs.set(change.remoteBranch, {
@@ -442,11 +438,11 @@ class FakeGitHub implements GitHubPlatform {
     }
   }
 
-  stackNumberForPullRequest(): number {
+  stackNumberForPullRequest() {
     return 7;
   }
 
-  pullRequestHead(reference: string): string {
+  pullRequestHead(reference: string) {
     const pr = this.pullRequest(Number(reference));
     const entry = [...this.prs.entries()].find(
       ([, candidate]) => candidate.number === pr.number,
@@ -457,11 +453,11 @@ class FakeGitHub implements GitHubPlatform {
     return entry[0];
   }
 
-  checkoutPullRequest(): void {
+  checkoutPullRequest() {
     throw new Error("Unexpected checkout delegation");
   }
 
-  private create(change: StackChange, draft: boolean): PullRequest {
+  private create(change: StackChange, draft: boolean) {
     const pr = {
       number: this.nextPr++,
       url: `https://example.test/pull/${this.nextPr}`,

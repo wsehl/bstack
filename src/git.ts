@@ -39,7 +39,7 @@ export class GitCliRepository implements GitRepository {
     return this.runner.run(["git", ...args], { cwd: this.cwd, ...options });
   }
 
-  assertReady(): void {
+  assertReady() {
     this.git(["rev-parse", "--show-toplevel"]);
 
     const status = this.git(["status", "--porcelain"]).stdout;
@@ -51,13 +51,13 @@ export class GitCliRepository implements GitRepository {
     }
   }
 
-  currentBranch(): string {
+  currentBranch() {
     return this.git(["symbolic-ref", "--quiet", "--short", "HEAD"], {
       allowFailure: true,
     }).stdout.trim();
   }
 
-  resolveRemote(requested?: string): string {
+  resolveRemote(requested?: string) {
     if (requested) {
       if (!this.remotes().includes(requested)) {
         throw new Error(`Git remote ${requested} does not exist`);
@@ -85,7 +85,7 @@ export class GitCliRepository implements GitRepository {
     );
   }
 
-  fetchBase(remote: string, base: string): string {
+  fetchBase(remote: string, base: string) {
     const destination = `refs/remotes/${remote}/${base}`;
 
     this.git([
@@ -98,7 +98,7 @@ export class GitCliRepository implements GitRepository {
     return destination;
   }
 
-  fetchRemoteBranch(remote: string, branch: string): string {
+  fetchRemoteBranch(remote: string, branch: string) {
     const destination = `refs/remotes/${remote}/${branch}`;
 
     this.git([
@@ -111,15 +111,15 @@ export class GitCliRepository implements GitRepository {
     return destination;
   }
 
-  checkout(ref: string): void {
+  checkout(ref: string) {
     this.git(["checkout", "--detach", ref]);
   }
 
-  mergeBase(left: string, right: string): string {
+  mergeBase(left: string, right: string) {
     return this.git(["merge-base", left, right]).stdout.trim();
   }
 
-  commitsSince(baseOid: string): Commit[] {
+  commitsSince(baseOid: string) {
     const oids = this.git([
       "rev-list",
       "--reverse",
@@ -134,7 +134,7 @@ export class GitCliRepository implements GitRepository {
     );
   }
 
-  rewriteCommits(rewrites: readonly CommitRewrite[]): string[] {
+  rewriteCommits(rewrites: readonly CommitRewrite[]) {
     if (rewrites.length === 0) {
       return [];
     }
@@ -158,7 +158,7 @@ export class GitCliRepository implements GitRepository {
     return rewrittenOids;
   }
 
-  pushBranches(remote: string, branches: readonly BranchUpdate[]): void {
+  pushBranches(remote: string, branches: readonly BranchUpdate[]) {
     const existing = this.remoteBranchOids(
       remote,
       branches.map((branch) => branch.name),
@@ -174,7 +174,7 @@ export class GitCliRepository implements GitRepository {
     this.git(["push", "--atomic", ...leases, remote, ...refspecs]);
   }
 
-  statePath(): string {
+  statePath() {
     return this.git([
       "rev-parse",
       "--path-format=absolute",
@@ -183,11 +183,11 @@ export class GitCliRepository implements GitRepository {
     ]).stdout.trim();
   }
 
-  private remotes(): string[] {
+  private remotes() {
     return this.git(["remote"]).stdout.split("\n").filter(Boolean);
   }
 
-  private configuredPushRemote(): string | undefined {
+  private configuredPushRemote() {
     const result = this.git(["config", "--get", "remote.pushDefault"], {
       allowFailure: true,
     });
@@ -197,10 +197,7 @@ export class GitCliRepository implements GitRepository {
       : undefined;
   }
 
-  private remoteBranchOids(
-    remote: string,
-    branches: readonly string[],
-  ): Map<string, string> {
+  private remoteBranchOids(remote: string, branches: readonly string[]) {
     if (branches.length === 0) {
       return new Map();
     }

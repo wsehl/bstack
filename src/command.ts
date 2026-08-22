@@ -34,7 +34,7 @@ export type CommandLogger = (command: readonly string[]) => void;
 export class NodeCommandRunner implements CommandRunner {
   constructor(private readonly logger?: CommandLogger) {}
 
-  run(command: readonly string[], options: CommandOptions): CommandResult {
+  run(command: readonly string[], options: CommandOptions) {
     const [executable, ...args] = command;
     if (!executable) {
       throw new Error("Cannot run an empty command");

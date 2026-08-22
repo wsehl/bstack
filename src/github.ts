@@ -54,18 +54,18 @@ export class GitHubCliPlatform implements GitHubPlatform {
     return this.runner.run(["gh", ...args], { cwd: this.cwd });
   }
 
-  assertReady(): void {
+  assertReady() {
     this.gh(["auth", "status", "--active"]);
     this.gh(["stack", "--version"]);
   }
 
-  currentUserLogin(): string {
+  currentUserLogin() {
     const login = this.gh(["api", "user", "--jq", ".login"]).stdout.trim();
 
     return v.parse(v.pipe(v.string(), v.minLength(1)), login);
   }
 
-  defaultBranch(): string {
+  defaultBranch() {
     return this.gh([
       "repo",
       "view",
@@ -76,7 +76,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     ]).stdout.trim();
   }
 
-  pullRequestForBranch(branch: string): PullRequest | undefined {
+  pullRequestForBranch(branch: string) {
     const raw = this.gh([
       "pr",
       "list",
@@ -98,7 +98,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     return selected;
   }
 
-  pullRequest(number: number): PullRequest {
+  pullRequest(number: number) {
     const raw = this.gh([
       "pr",
       "view",
@@ -110,11 +110,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     return v.parse(pullRequestSchema, JSON.parse(raw));
   }
 
-  createPullRequest(
-    change: StackChange,
-    base: string,
-    draft: boolean,
-  ): PullRequest {
+  createPullRequest(change: StackChange, base: string, draft: boolean) {
     const args = [
       "pr",
       "create",
@@ -147,7 +143,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     base: string,
     remote: string,
     draft: boolean,
-  ): void {
+  ) {
     const args = ["stack", "link", "--base", base, "--remote", remote];
 
     if (!draft) {
@@ -163,7 +159,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     branches: readonly string[],
     remote: string,
     draft: boolean,
-  ): void {
+  ) {
     const args = ["stack", "link", "--remote", remote];
 
     if (!draft) {
@@ -174,15 +170,15 @@ export class GitHubCliPlatform implements GitHubPlatform {
     this.gh(args);
   }
 
-  unstack(stackNumber: number): void {
+  unstack(stackNumber: number) {
     this.gh(["stack", "unstack", String(stackNumber)]);
   }
 
-  editPullRequestBase(pr: PullRequest, base: string): void {
+  editPullRequestBase(pr: PullRequest, base: string) {
     this.gh(["pr", "edit", String(pr.number), "--base", base]);
   }
 
-  editPullRequest(pr: PullRequest, change: StackChange): void {
+  editPullRequest(pr: PullRequest, change: StackChange) {
     if (pr.title === change.subject && pr.body === change.body) {
       return;
     }
@@ -198,7 +194,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     ]);
   }
 
-  stackNumberForPullRequest(prNumber: number): number | undefined {
+  stackNumberForPullRequest(prNumber: number) {
     const raw = this.gh([
       "api",
       `repos/{owner}/{repo}/stacks?pull_request=${prNumber}`,
@@ -209,7 +205,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     return stacks[0]?.number;
   }
 
-  pullRequestHead(reference: string): string {
+  pullRequestHead(reference: string) {
     return this.gh([
       "pr",
       "view",
@@ -221,7 +217,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     ]).stdout.trim();
   }
 
-  checkoutPullRequest(reference: string): void {
+  checkoutPullRequest(reference: string) {
     this.gh(["pr", "checkout", reference]);
   }
 }
