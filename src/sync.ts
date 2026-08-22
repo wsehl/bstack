@@ -7,14 +7,21 @@ import type {
   StoredStack,
 } from "./model";
 import type { Reporter } from "./reporter";
-import { StateStore } from "./state";
+import { Stack } from "./stack";
+import type { StateStore } from "./state";
+
+export type SyncDependencies = {
+  repository: GitRepository;
+  github: GitHubPlatform;
+  stateStore: StateStore;
+  reporter: Reporter;
+};
 
 export type SyncOptions = {
   base: string | undefined;
   remote: string | undefined;
   draft: boolean;
   dryRun: boolean;
-  reporter: Reporter;
 };
 
 export type SyncResult = {
@@ -25,11 +32,10 @@ export type SyncResult = {
 };
 
 export function syncStack(
-  repository: GitRepository,
-  github: GitHubPlatform,
+  dependencies: SyncDependencies,
   options: SyncOptions,
 ): SyncResult {
-  const { reporter } = options;
+  const { repository, github, stateStore, reporter } = dependencies;
 
   reporter.progress("Checking the repository and GitHub prerequisites");
   repository.assertReady();
@@ -57,8 +63,8 @@ export function syncStack(
     `Found ${commits.length} local change${commits.length === 1 ? "" : "s"}`,
   );
 
-  const rewritten = commits.some((commit) => commit.changeId === undefined);
-  if (rewritten) {
+  const pendingStack = Stack.fromCommits(commits, userLogin);
+  if (pendingStack.rewritten) {
     reporter.progress(
       options.dryRun
         ? "Stable change IDs would be added to the commits"
@@ -68,38 +74,41 @@ export function syncStack(
     reporter.progress("All commits already have stable change IDs");
   }
 
-  const changes = repository.ensureChangeIds(
-    commits,
-    options.dryRun,
-    userLogin,
-  );
+  const stack = options.dryRun
+    ? pendingStack
+    : pendingStack.writeChangeIds(repository);
+  const { changes, rewritten } = stack;
 
   if (options.dryRun) {
     reporter.progress(
       "Dry run complete; no commits or remote branches were changed",
     );
-    return { base, remote, rewritten, changes };
+    return { base, remote, rewritten, changes: [...changes] };
   }
 
   reporter.progress("Reading the previous stack state");
 
-  const store = new StateStore(repository.statePath());
-  const state = store.read();
-  const previous = store.findByChangeIds(
-    state,
-    new Set(changes.map((change) => change.id)),
-  );
-  const transition = analyzeStackTransition(
-    previous,
-    changes,
-    github,
-    repository.currentBranch() === "",
-  );
+  const state = stateStore.read();
+  const previous = stack.findPrevious(state);
+  const transition = stack.transitionFrom(previous, {
+    preserveHigherChanges: repository.currentBranch() === "",
+    lookups: {
+      pullRequestState: (pullRequest) => github.pullRequest(pullRequest).state,
+      stackNumberForPullRequest: (pullRequest) =>
+        github.stackNumberForPullRequest(pullRequest),
+    },
+  });
 
   reporter.progress(
     `Pushing ${changes.length} remote branch${changes.length === 1 ? "" : "es"}`,
   );
-  repository.pushChanges(remote, changes);
+  repository.pushBranches(
+    remote,
+    changes.map((change) => ({
+      name: change.remoteBranch,
+      oid: change.oid,
+    })),
+  );
 
   reporter.progress("Looking up existing pull requests");
   const existing = changes.map((change) =>
@@ -224,7 +233,7 @@ export function syncStack(
   if (stackNumber !== undefined) {
     updatedStack.stackNumber = stackNumber;
   }
-  writeUpdatedState(store, state, previous, updatedStack);
+  writeUpdatedState(stateStore, state, previous, updatedStack);
   reporter.progress("Saved the local stack state");
 
   return {
@@ -236,139 +245,6 @@ export function syncStack(
       pullRequest: pullRequests[index]!,
     })),
   };
-}
-
-type StackTransition =
-  | { kind: "full" }
-  | {
-      kind: "rebuild";
-      stackNumber: number;
-      action: "insert" | "remove" | "update";
-    }
-  | { kind: "collapse"; stackNumber: number }
-  | { kind: "skip" }
-  | { kind: "partial"; previousOffset: number }
-  | { kind: "append"; stackNumber: number; branches: string[] };
-
-function analyzeStackTransition(
-  previous: StoredStack | undefined,
-  changes: readonly StackChange[],
-  github: GitHubPlatform,
-  preserveHigherChanges: boolean,
-): StackTransition {
-  if (!previous) {
-    return { kind: "full" };
-  }
-  const previousIds = previous.changes.map((change) => change.id);
-  const currentIds = changes.map((change) => change.id);
-  const previousIdSet = new Set(previousIds);
-  const currentIdSet = new Set(currentIds);
-  const sharedPrevious = previousIds.filter((id) => currentIdSet.has(id));
-  const sharedCurrent = currentIds.filter((id) => previousIdSet.has(id));
-
-  if (!sameSequence(sharedPrevious, sharedCurrent)) {
-    throw new Error(
-      "Submitted commits cannot be reordered. Restore their original relative order before syncing",
-    );
-  }
-
-  const removed = previous.changes.filter(
-    (change) => !currentIdSet.has(change.id),
-  );
-  const added = changes.filter((change) => !previousIdSet.has(change.id));
-
-  if (removed.length === 0) {
-    const onlyAppended = previousIds.every(
-      (id, index) => currentIds[index] === id,
-    );
-    if (onlyAppended) {
-      return { kind: "full" };
-    }
-    const stackNumber =
-      previous.stackNumber ??
-      github.stackNumberForPullRequest(previous.changes[0]!.pullRequest);
-    return stackNumber === undefined
-      ? { kind: "full" }
-      : { kind: "rebuild", stackNumber, action: "insert" };
-  }
-
-  const firstCurrentIndex = previousIds.indexOf(currentIds[0]!);
-  const isPreviousSlice =
-    firstCurrentIndex >= 0 &&
-    currentIds.every(
-      (id, index) => previousIds[firstCurrentIndex + index] === id,
-    );
-  if (
-    preserveHigherChanges &&
-    added.length === 0 &&
-    isPreviousSlice &&
-    firstCurrentIndex + currentIds.length < previousIds.length
-  ) {
-    const removedPrefix = previous.changes.slice(0, firstCurrentIndex);
-    const prefixWasMerged = removedPrefix.every(
-      (change) => github.pullRequest(change.pullRequest).state === "MERGED",
-    );
-    if (prefixWasMerged) {
-      return { kind: "partial", previousOffset: firstCurrentIndex };
-    }
-  }
-
-  const removedIsPrefix = removed.every(
-    (change, index) => previous.changes[index] === change,
-  );
-  const removedPrefixWasMerged =
-    removedIsPrefix &&
-    removed.every(
-      (change) => github.pullRequest(change.pullRequest).state === "MERGED",
-    );
-  const survivingIds = previousIds.slice(removed.length);
-  const onlyAppendedAfterMergedPrefix =
-    removedPrefixWasMerged &&
-    survivingIds.every((id, index) => currentIds[index] === id) &&
-    currentIds.slice(survivingIds.length).every((id) => !previousIdSet.has(id));
-
-  if (removedPrefixWasMerged && added.length === 0) {
-    return { kind: "skip" };
-  }
-  if (onlyAppendedAfterMergedPrefix) {
-    if (previous.stackNumber === undefined) {
-      throw new Error(
-        "Cannot append after a merge because the native GitHub stack number is missing from local state",
-      );
-    }
-    return {
-      kind: "append",
-      stackNumber: previous.stackNumber,
-      branches: added.map((change) => change.remoteBranch),
-    };
-  }
-
-  const stackNumber =
-    previous.stackNumber ??
-    github.stackNumberForPullRequest(previous.changes[0]!.pullRequest);
-  if (stackNumber === undefined) {
-    throw new Error(
-      "Cannot remove submitted commits because the native GitHub stack number is missing from local state",
-    );
-  }
-  if (changes.length === 1) {
-    return { kind: "collapse", stackNumber };
-  }
-  return {
-    kind: "rebuild",
-    stackNumber,
-    action: added.length === 0 ? "remove" : "update",
-  };
-}
-
-function sameSequence(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
 }
 
 function restorePreviousStack(

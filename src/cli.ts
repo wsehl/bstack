@@ -4,9 +4,10 @@ import { parseArgs } from "node:util";
 import packageJson from "../package.json";
 import { NodeCommandRunner } from "./command";
 import { checkoutStack } from "./checkout";
-import { GitRepository } from "./git";
+import { GitCliRepository } from "./git";
 import { GitHubCliPlatform } from "./github";
 import { ConsoleReporter } from "./reporter";
+import { FileStateStore } from "./state";
 import { syncStack } from "./sync";
 
 const help = `bstack - turn a linear commit series into a native GitHub stack of PRs
@@ -54,7 +55,7 @@ function main(): void {
 
   const runner = new NodeCommandRunner();
   const cwd = process.cwd();
-  const repository = new GitRepository(cwd, runner);
+  const repository = new GitCliRepository(cwd, runner);
   const github = new GitHubCliPlatform(cwd, runner);
   const reporter = new ConsoleReporter(!values.quiet);
   const command = positionals[0] ?? "sync";
@@ -64,13 +65,15 @@ function main(): void {
     if (!reference || positionals.length > 2) {
       throw new Error(`Usage: bstack checkout <PR-number-or-URL> [options]`);
     }
-    const result = checkoutStack(repository, github, {
-      reference,
-      base: values.base,
-      remote: values.remote,
-      sameBase: values["same-base"],
-      reporter,
-    });
+    const result = checkoutStack(
+      { repository, github, reporter },
+      {
+        reference,
+        base: values.base,
+        remote: values.remote,
+        sameBase: values["same-base"],
+      },
+    );
     console.log(
       result.delegated
         ? `Checked out pull request ${reference}`
@@ -83,13 +86,20 @@ function main(): void {
     throw new Error(`Unknown command: ${positionals.join(" ")}\n\n${help}`);
   }
 
-  const result = syncStack(repository, github, {
-    base: values.base,
-    remote: values.remote,
-    draft: values.draft,
-    dryRun: values["dry-run"],
-    reporter,
-  });
+  const result = syncStack(
+    {
+      repository,
+      github,
+      stateStore: new FileStateStore(repository.statePath()),
+      reporter,
+    },
+    {
+      base: values.base,
+      remote: values.remote,
+      draft: values.draft,
+      dryRun: values["dry-run"],
+    },
+  );
 
   console.log(
     `${values["dry-run"] ? "Would sync" : "Synced"} ${result.changes.length} change${result.changes.length === 1 ? "" : "s"} against ${result.base}:`,
