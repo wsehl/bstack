@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.5](https://github.com/wsehl/bstack/compare/v1.1.4...v1.1.5) (2026-08-22)
+
+
+### Documentation
+
+* add npmx badge ([88c935b](https://github.com/wsehl/bstack/commit/88c935b5b6d674fad46dd84ffeca5e5bb00fab09))
+
 ## [1.1.4](https://github.com/wsehl/bstack/compare/v1.1.3...v1.1.4) (2026-08-22)
 
 
