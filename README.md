@@ -8,36 +8,87 @@ Convert a series of commits in a local branch into a native GitHub stack of pull
 npm install -g bstack
 ```
 
-Install and authenticate the GitHub CLI with the `github/gh-stack` extension:
+Install and authenticate the [GitHub CLI](https://cli.github.com/) with the [stack](https://github.com/github/gh-stack) extension:
 
 ```
 gh auth login
 gh extension install github/gh-stack
 ```
 
-## Use
+## How to use
 
-Create one commit per change, then sync the stack:
+Write and edit commits locally. `bstack` handles the GitHub ops for you:
+
+You
+
+- Do not push your local feature branch.
+- Do not open pull requests manually.
+- Run `bstack` when your commits are ready. It pushes dedicated remote branches
+  and creates one pull request for each commit.
+
+### Start a stack
+
+Create a local branch from `main`, then make one commit per reviewable change:
 
 ```bash
+git switch main
 git switch -c my-feature
 git commit -am "feat: add the model"
 git commit -am "feat: add the API"
 bstack
 ```
 
-Run `bstack` again after amending or rebasing commits.
+That is the whole publishing flow. Keep working on the same local branch and run `bstack` again whenever the stack changes.
 
-New PRs are ready for review by default. Pass `--draft` to create draft PRs.
+### Add another pull request
 
-Checkout a stack through one of its PRs:
+Add another commit on top of the stack, then run `bstack`:
+
+```bash
+git commit -am "feat: add validation"
+bstack
+```
+
+`bstack` keeps the existing pull requests and adds one for the new commit.
+
+### Modify a pull request
+
+Edit the corresponding commit, then run `bstack` again. For the latest commit:
+
+```bash
+git commit --amend
+bstack
+```
+
+For an older commit, use interactive rebase, mark that commit for editing, make
+your changes, and continue the rebase:
+
+```bash
+git rebase -i main
+git commit --amend
+git rebase --continue
+bstack
+```
+
+Stacks cannot contain merge commits.
+When `main` moves, rebase your branch onto it instead of merging `main` into your branch.
+
+### Checkout an existing stack
+
+Use any pull request in the stack:
 
 ```bash
 bstack checkout 123
 bstack checkout https://github.com/owner/repo/pull/123
 ```
 
-Use `--dry-run` to inspect without syncing. Pass `--verbose` to print every command before it runs.
+### Options
+
+New pull requests are ready for review by default. Pass `--draft` to create
+drafts instead.
+
+Use `--dry-run` to inspect without syncing. Pass `--verbose` to print every
+command before it runs.
 
 ## References
 
