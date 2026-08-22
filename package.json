@@ -1,6 +1,6 @@
 {
   "name": "bstack",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Create native GitHub stacked pull requests from a linear series of commits",
   "repository": {
     "type": "git",

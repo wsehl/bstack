@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0](https://github.com/wsehl/bstack/compare/v1.0.4...v1.1.0) (2026-08-22)
+
+
+### Features
+
+* add verbose logging ([#14](https://github.com/wsehl/bstack/issues/14)) ([0c67e7f](https://github.com/wsehl/bstack/commit/0c67e7f57446ad2634426c5416b00cf00b6633de))
+
+
+### Documentation
+
+* update readme ([4a9d1ca](https://github.com/wsehl/bstack/commit/4a9d1ca91800b851054498d0d0956f3b1f5d0f38))
+
+
+### Styles
+
+* format pkg json ([#12](https://github.com/wsehl/bstack/issues/12)) ([421e1ac](https://github.com/wsehl/bstack/commit/421e1accfcad4572d00d3ab8392b53b62ea8cee8))
+
+
+### Code Refactoring
+
+* replace zod with valibot ([1d4726e](https://github.com/wsehl/bstack/commit/1d4726ec491ec87237bafb2945649207703904c1))
+* separate stack domain from git operations ([#13](https://github.com/wsehl/bstack/issues/13)) ([60fb9ea](https://github.com/wsehl/bstack/commit/60fb9ea958bdfcf63a4df72c594cb75a9d4ac46a))
+
 ## [1.0.4](https://github.com/wsehl/bstack/compare/v1.0.3...v1.0.4) (2026-08-21)
 
 
