@@ -1,25 +1,21 @@
 {
   "name": "bstack",
   "version": "1.0.4",
-  "packageManager": "pnpm@11.5.1",
   "description": "Create native GitHub stacked pull requests from a linear series of commits",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wsehl/bstack.git"
   },
-  "files": [
-    "dist/bstack.js"
-  ],
   "bin": {
     "bstack": "./dist/bstack.js"
   },
-  "engines": {
-    "node": ">=20"
-  },
+  "files": [
+    "dist/bstack.js"
+  ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
   },
-  "type": "module",
   "scripts": {
     "build": "tsdown",
     "format": "oxfmt --write .",
@@ -31,6 +27,9 @@
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
+  "dependencies": {
+    "valibot": "^1.4.2"
+  },
   "devDependencies": {
     "@types/node": "^26.0.0",
     "oxfmt": "^0.64.0",
@@ -39,7 +38,8 @@
     "typescript": "^7.0.2",
     "vitest": "^4.0.0"
   },
-  "dependencies": {
-    "valibot": "^1.4.2"
-  }
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.5.1"
 }
