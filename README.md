@@ -1,5 +1,7 @@
 # bstack
 
+[![Open on npmx.dev](https://npmx.dev/api/registry/badge/version/bstack)](https://npmx.dev/package/bstack)
+
 Convert a series of commits in a local branch into a native GitHub stack of pull requests.
 
 ## Install
