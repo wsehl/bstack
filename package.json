@@ -8,10 +8,10 @@
     "url": "git+https://github.com/wsehl/bstack.git"
   },
   "bin": {
-    "bstack": "./dist/bstack.js"
+    "bstack": "./dist/bstack.mjs"
   },
   "files": [
-    "dist/bstack.js"
+    "dist/bstack.mjs"
   ],
   "type": "module",
   "publishConfig": {
@@ -24,7 +24,7 @@
     "lint": "oxlint .",
     "prepack": "pnpm run build",
     "prepublishOnly": "pnpm run type-check && pnpm test",
-    "start": "pnpm run build && node dist/bstack.js",
+    "start": "pnpm run build && node dist/bstack.mjs",
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
