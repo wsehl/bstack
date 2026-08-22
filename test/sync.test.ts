@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NodeCommandRunner } from "../src/command";
 import { checkoutStack } from "../src/checkout";
-import { GitRepository } from "../src/git";
+import { GitCliRepository, type GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
 import type { PullRequest, StackChange } from "../src/model";
 import type { Reporter } from "../src/reporter";
-import { StateStore } from "../src/state";
-import { syncStack } from "../src/sync";
+import { FileStateStore } from "../src/state";
+import { syncStack, type SyncOptions, type SyncResult } from "../src/sync";
 
 const temporaryDirectories: string[] = [];
 
@@ -31,7 +31,7 @@ describe("stack sync", () => {
       const fixture = createRepository();
       const github = new FakeGitHub();
       const reporter = new RecordingReporter();
-      const repository = new GitRepository(
+      const repository = new GitCliRepository(
         fixture.worktree,
         new NodeCommandRunner(),
       );
@@ -46,7 +46,7 @@ describe("stack sync", () => {
       writeFileSync(join(fixture.worktree, "third.txt"), "third\n");
       git(fixture.worktree, "add", "third.txt");
       git(fixture.worktree, "commit", "-m", "Third change");
-      const submitted = syncStack(repository, github, options);
+      const submitted = sync(repository, github, options);
       const surviving = submitted.changes.filter(
         (_change, changeIndex) => changeIndex !== index,
       );
@@ -60,7 +60,7 @@ describe("stack sync", () => {
       git(fixture.worktree, "branch", "-f", "feature", "HEAD");
       git(fixture.worktree, "switch", "feature");
 
-      const updated = syncStack(repository, github, options);
+      const updated = sync(repository, github, options);
 
       expect(updated.changes.map((change) => change.id)).toEqual(
         surviving.map((change) => change.id),
@@ -76,7 +76,7 @@ describe("stack sync", () => {
         github.prs.get(submitted.changes[index]!.remoteBranch)?.state,
       ).toBe("OPEN");
       expect(
-        new StateStore(repository.statePath()).read().stacks[0]!.changes,
+        new FileStateStore(repository.statePath()).read().stacks[0]!.changes,
       ).toEqual(
         surviving.map((change) => ({
           id: change.id,
@@ -95,7 +95,7 @@ describe("stack sync", () => {
     const fixture = createRepository();
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
-    const repository = new GitRepository(
+    const repository = new GitCliRepository(
       fixture.worktree,
       new NodeCommandRunner(),
     );
@@ -106,7 +106,7 @@ describe("stack sync", () => {
       dryRun: false,
       reporter,
     } as const;
-    const submitted = syncStack(repository, github, options);
+    const submitted = sync(repository, github, options);
     const survivor = submitted.changes[1]!;
 
     git(fixture.worktree, "switch", "--detach", "main");
@@ -114,8 +114,8 @@ describe("stack sync", () => {
     git(fixture.worktree, "branch", "-f", "feature", "HEAD");
     git(fixture.worktree, "switch", "feature");
 
-    const updated = syncStack(repository, github, options);
-    const stored = new StateStore(repository.statePath()).read().stacks[0]!;
+    const updated = sync(repository, github, options);
+    const stored = new FileStateStore(repository.statePath()).read().stacks[0]!;
 
     expect(updated.changes[0]!.id).toBe(survivor.id);
     expect(github.unstackCalls).toEqual([7]);
@@ -131,7 +131,7 @@ describe("stack sync", () => {
     const fixture = createRepository();
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
-    const repository = new GitRepository(
+    const repository = new GitCliRepository(
       fixture.worktree,
       new NodeCommandRunner(),
     );
@@ -142,7 +142,7 @@ describe("stack sync", () => {
       dryRun: false,
       reporter,
     } as const;
-    const submitted = syncStack(repository, github, options);
+    const submitted = sync(repository, github, options);
 
     git(fixture.worktree, "switch", "--detach", "main");
     git(
@@ -153,7 +153,7 @@ describe("stack sync", () => {
     git(fixture.worktree, "branch", "-f", "feature", "HEAD");
     git(fixture.worktree, "switch", "feature");
 
-    expect(() => syncStack(repository, github, options)).toThrow(
+    expect(() => sync(repository, github, options)).toThrow(
       "Submitted commits cannot be reordered",
     );
     expect(github.unstackCalls).toEqual([]);
@@ -164,7 +164,7 @@ describe("stack sync", () => {
     const fixture = createRepository();
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
-    const repository = new GitRepository(
+    const repository = new GitCliRepository(
       fixture.worktree,
       new NodeCommandRunner(),
     );
@@ -176,7 +176,7 @@ describe("stack sync", () => {
       reporter,
     } as const;
 
-    const submitted = syncStack(repository, github, options);
+    const submitted = sync(repository, github, options);
     git(fixture.worktree, "switch", "--detach", "main");
     writeFileSync(join(fixture.worktree, "inserted.txt"), "inserted\n");
     git(fixture.worktree, "add", "inserted.txt");
@@ -189,7 +189,7 @@ describe("stack sync", () => {
     git(fixture.worktree, "branch", "-f", "feature", "HEAD");
     git(fixture.worktree, "switch", "feature");
 
-    const updated = syncStack(repository, github, options);
+    const updated = sync(repository, github, options);
 
     expect(updated.changes).toHaveLength(3);
     expect(updated.changes[0]!.subject).toBe("Inserted change");
@@ -212,12 +212,12 @@ describe("stack sync", () => {
     const fixture = createRepository();
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
-    const repository = new GitRepository(
+    const repository = new GitCliRepository(
       fixture.worktree,
       new NodeCommandRunner(),
     );
 
-    const first = syncStack(repository, github, {
+    const first = sync(repository, github, {
       base: "main",
       remote: "origin",
       draft: false,
@@ -263,13 +263,15 @@ describe("stack sync", () => {
       reporter.messages.some((message) => message.startsWith("PR #")),
     ).toBe(true);
 
-    checkoutStack(repository, github, {
-      reference: String(first.changes[0]!.pullRequest!.number),
-      base: undefined,
-      remote: "origin",
-      sameBase: false,
-      reporter,
-    });
+    checkoutStack(
+      { repository, github, reporter },
+      {
+        reference: String(first.changes[0]!.pullRequest!.number),
+        base: undefined,
+        remote: "origin",
+        sameBase: false,
+      },
+    );
     expect(
       gitAllowFailure(fixture.worktree, "symbolic-ref", "--quiet", "HEAD")
         .exitCode,
@@ -277,7 +279,7 @@ describe("stack sync", () => {
     expect(git(fixture.worktree, "rev-parse", "HEAD").stdout.trim()).toBe(
       first.changes[0]!.oid,
     );
-    const checkedOutPrefix = syncStack(repository, github, {
+    const checkedOutPrefix = sync(repository, github, {
       base: "main",
       remote: "origin",
       draft: false,
@@ -294,7 +296,7 @@ describe("stack sync", () => {
     git(fixture.worktree, "add", "second.txt");
     git(fixture.worktree, "commit", "--amend", "--no-edit");
 
-    const second = syncStack(repository, github, {
+    const second = sync(repository, github, {
       base: "main",
       remote: "origin",
       draft: false,
@@ -328,7 +330,7 @@ describe("stack sync", () => {
     git(fixture.worktree, "push", "origin", "main");
     git(fixture.worktree, "rebase", "--onto", "main", firstCommit, "feature");
 
-    const afterMerge = syncStack(repository, github, {
+    const afterMerge = sync(repository, github, {
       base: "main",
       remote: "origin",
       draft: false,
@@ -471,6 +473,24 @@ class FakeGitHub implements GitHubPlatform {
     this.prs.set(change.remoteBranch, pr);
     return pr;
   }
+}
+
+function sync(
+  repository: GitRepository,
+  github: GitHubPlatform,
+  options: SyncOptions & { reporter: Reporter },
+): SyncResult {
+  const { reporter, ...syncOptions } = options;
+
+  return syncStack(
+    {
+      repository,
+      github,
+      stateStore: new FileStateStore(repository.statePath()),
+      reporter,
+    },
+    syncOptions,
+  );
 }
 
 function createRepository() {

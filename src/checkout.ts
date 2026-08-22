@@ -2,12 +2,17 @@ import type { GitRepository } from "./git";
 import type { GitHubPlatform } from "./github";
 import type { Reporter } from "./reporter";
 
+export type CheckoutDependencies = {
+  repository: GitRepository;
+  github: GitHubPlatform;
+  reporter: Reporter;
+};
+
 export type CheckoutOptions = {
   reference: string;
   base: string | undefined;
   remote: string | undefined;
   sameBase: boolean;
-  reporter: Reporter;
 };
 
 export type CheckoutResult = {
@@ -16,11 +21,10 @@ export type CheckoutResult = {
 };
 
 export function checkoutStack(
-  repository: GitRepository,
-  github: GitHubPlatform,
+  dependencies: CheckoutDependencies,
   options: CheckoutOptions,
 ): CheckoutResult {
-  const { reporter } = options;
+  const { repository, github, reporter } = dependencies;
 
   reporter.progress("Checking the repository and GitHub prerequisites");
   repository.assertReady();

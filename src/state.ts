@@ -24,7 +24,12 @@ const stateSchema = v.object({
   stacks: v.array(storedStackSchema),
 });
 
-export class StateStore {
+export interface StateStore {
+  read(): RepositoryState;
+  write(state: RepositoryState): void;
+}
+
+export class FileStateStore implements StateStore {
   constructor(private readonly path: string) {}
 
   read(): RepositoryState {
@@ -71,22 +76,5 @@ export class StateStore {
     const temporary = `${this.path}.tmp`;
     writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`);
     renameSync(temporary, this.path);
-  }
-
-  findByChangeIds(
-    state: RepositoryState,
-    ids: ReadonlySet<string>,
-  ): StoredStack | undefined {
-    const matches = state.stacks.filter((stack) =>
-      stack.changes.some((change) => ids.has(change.id)),
-    );
-
-    if (matches.length > 1) {
-      throw new Error(
-        "The current commits match more than one stored bstack stack",
-      );
-    }
-
-    return matches[0];
   }
 }
