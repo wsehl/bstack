@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/wsehl/bstack/compare/v1.1.2...v1.1.3) (2026-08-22)
+
+
+### Miscellaneous Chores
+
+* clean up defaults ([df8e269](https://github.com/wsehl/bstack/commit/df8e269cadffcbc6bde4d0de1b3381b7dea8a873))
+
 ## [1.1.2](https://github.com/wsehl/bstack/compare/v1.1.1...v1.1.2) (2026-08-22)
 
 
