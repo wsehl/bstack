@@ -1,17 +1,17 @@
-import { z } from "zod";
+import * as v from "valibot";
 import type { CommandRunner } from "./command";
 import type { PullRequest, StackChange } from "./model";
 
-const pullRequestSchema = z.object({
-  number: z.number(),
-  url: z.string(),
-  state: z.enum(["OPEN", "CLOSED", "MERGED"]),
-  title: z.string(),
-  body: z.string(),
-  isDraft: z.boolean(),
+const pullRequestSchema = v.object({
+  number: v.number(),
+  url: v.string(),
+  state: v.picklist(["OPEN", "CLOSED", "MERGED"]),
+  title: v.string(),
+  body: v.string(),
+  isDraft: v.boolean(),
 });
 
-const stackSchema = z.object({ number: z.number() });
+const stackSchema = v.object({ number: v.number() });
 
 export interface GitHubPlatform {
   assertReady(): void;
@@ -60,10 +60,9 @@ export class GitHubCliPlatform implements GitHubPlatform {
   }
 
   currentUserLogin(): string {
-    return z
-      .string()
-      .min(1)
-      .parse(this.gh(["api", "user", "--jq", ".login"]).stdout.trim());
+    const login = this.gh(["api", "user", "--jq", ".login"]).stdout.trim();
+
+    return v.parse(v.pipe(v.string(), v.minLength(1)), login);
   }
 
   defaultBranch(): string {
@@ -90,7 +89,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
       "--json",
       "number,url,state,title,body,isDraft",
     ]).stdout;
-    const candidates = pullRequestSchema.array().parse(JSON.parse(raw));
+    const candidates = v.parse(v.array(pullRequestSchema), JSON.parse(raw));
 
     const selected =
       candidates.find((pr) => pr.state === "OPEN") ??
@@ -108,7 +107,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
       "number,url,state,title,body,isDraft",
     ]).stdout;
 
-    return pullRequestSchema.parse(JSON.parse(raw));
+    return v.parse(pullRequestSchema, JSON.parse(raw));
   }
 
   createPullRequest(
@@ -205,7 +204,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
       `repos/{owner}/{repo}/stacks?pull_request=${prNumber}`,
     ]).stdout;
 
-    const stacks = stackSchema.array().parse(JSON.parse(raw));
+    const stacks = v.parse(v.array(stackSchema), JSON.parse(raw));
 
     return stacks[0]?.number;
   }

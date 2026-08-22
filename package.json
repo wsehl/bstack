@@ -40,6 +40,6 @@
     "vitest": "^4.0.0"
   },
   "dependencies": {
-    "zod": "^4.4.3"
+    "valibot": "^1.4.2"
   }
 }

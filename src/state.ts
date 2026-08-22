@@ -1,27 +1,27 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { z } from "zod";
+import * as v from "valibot";
 import type { RepositoryState, StoredStack } from "./model";
 
 const emptyState = (): RepositoryState => ({ schemaVersion: 1, stacks: [] });
 
-const storedChangeSchema = z.object({
-  id: z.string(),
-  remoteBranch: z.string(),
-  pullRequest: z.number(),
-  url: z.string(),
+const storedChangeSchema = v.object({
+  id: v.string(),
+  remoteBranch: v.string(),
+  pullRequest: v.number(),
+  url: v.string(),
 });
 
-const storedStackSchema = z.object({
-  remote: z.string(),
-  base: z.string(),
-  stackNumber: z.number().optional(),
-  changes: storedChangeSchema.array(),
+const storedStackSchema = v.object({
+  remote: v.string(),
+  base: v.string(),
+  stackNumber: v.optional(v.number()),
+  changes: v.array(storedChangeSchema),
 });
 
-const stateSchema = z.object({
-  schemaVersion: z.literal(1),
-  stacks: storedStackSchema.array(),
+const stateSchema = v.object({
+  schemaVersion: v.literal(1),
+  stacks: v.array(storedStackSchema),
 });
 
 export class StateStore {
@@ -29,7 +29,8 @@ export class StateStore {
 
   read(): RepositoryState {
     try {
-      const parsed = stateSchema.parse(
+      const parsed = v.parse(
+        stateSchema,
         JSON.parse(readFileSync(this.path, "utf8")),
       );
 
@@ -55,7 +56,7 @@ export class StateStore {
         return emptyState();
       }
 
-      if (error instanceof z.ZodError) {
+      if (v.isValiError(error)) {
         throw new Error(`Unsupported bstack state in ${this.path}`, {
           cause: error,
         });
