@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.4](https://github.com/wsehl/bstack/compare/v1.1.3...v1.1.4) (2026-08-22)
+
+
+### Bug Fixes
+
+* publish CLI as .mjs ([6bbc98f](https://github.com/wsehl/bstack/commit/6bbc98fa1f5a2eb37fa6da2e8371094814af61a9))
+
+
+### Documentation
+
+* add stacking.dev reference ([4f49fa0](https://github.com/wsehl/bstack/commit/4f49fa0155264eb83b31e2dda4b262e9ccbf87b4))
+
 ## [1.1.3](https://github.com/wsehl/bstack/compare/v1.1.2...v1.1.3) (2026-08-22)
 
 
