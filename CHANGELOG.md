@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/wsehl/bstack/compare/v1.1.1...v1.1.2) (2026-08-22)
+
+
+### Tests
+
+* cover sync rollback and checkout safety ([6f467e0](https://github.com/wsehl/bstack/commit/6f467e072330ea56540c4cb2e807d45245975455))
+
 ## [1.1.1](https://github.com/wsehl/bstack/compare/v1.1.0...v1.1.1) (2026-08-22)
 
 
