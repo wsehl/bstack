@@ -29,12 +29,18 @@ export interface CommandRunner {
   run(command: readonly string[], options: CommandOptions): CommandResult;
 }
 
+export type CommandLogger = (command: readonly string[]) => void;
+
 export class NodeCommandRunner implements CommandRunner {
+  constructor(private readonly logger?: CommandLogger) {}
+
   run(command: readonly string[], options: CommandOptions): CommandResult {
     const [executable, ...args] = command;
     if (!executable) {
       throw new Error("Cannot run an empty command");
     }
+
+    this.logger?.(command);
 
     const result = spawnSync(executable, args, {
       cwd: options.cwd,
@@ -58,4 +64,16 @@ export class NodeCommandRunner implements CommandRunner {
 
     return commandResult;
   }
+}
+
+export function formatCommand(command: readonly string[]): string {
+  return command.map(formatArgument).join(" ");
+}
+
+function formatArgument(argument: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(argument)) {
+    return argument;
+  }
+
+  return `'${argument.replaceAll("'", `'"'"'`)}'`;
 }

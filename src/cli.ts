@@ -21,7 +21,7 @@ Options:
   --remote <name>    Git remote; defaults to remote.pushDefault or origin
   --draft            Create draft PRs instead of ready-for-review PRs
   --dry-run          Inspect the stack without rewriting commits or pushing
-  --quiet            Hide progress logs; the final summary is still printed
+  --verbose          Show each git and gh command before it runs
   --same-base        Refuse checkout if it would change the current merge base
   -v, --version      Show the installed version
   -h, --help         Show this help
@@ -36,7 +36,7 @@ function main(): void {
       remote: { type: "string" },
       draft: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
-      quiet: { type: "boolean", default: false },
+      verbose: { type: "boolean", default: false },
       "same-base": { type: "boolean", default: false },
       version: { type: "boolean", short: "v", default: false },
       help: { type: "boolean", short: "h", default: false },
@@ -53,11 +53,13 @@ function main(): void {
     return;
   }
 
-  const runner = new NodeCommandRunner();
+  const reporter = new ConsoleReporter();
+  const runner = new NodeCommandRunner(
+    values.verbose ? (invocation) => reporter.command(invocation) : undefined,
+  );
   const cwd = process.cwd();
   const repository = new GitCliRepository(cwd, runner);
   const github = new GitHubCliPlatform(cwd, runner);
-  const reporter = new ConsoleReporter(!values.quiet);
   const command = positionals[0] ?? "sync";
 
   if (command === "checkout") {
