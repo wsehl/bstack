@@ -21,10 +21,11 @@ Write and edit commits locally. `bstack` handles the GitHub ops for you:
 
 You
 
-- Do not push your local feature branch.
+- Do not push your local feature branches.
 - Do not open pull requests manually.
-- Run `bstack` when your commits are ready. It pushes dedicated remote branches
-  and creates one pull request for each commit.
+- Run `bstack` when your commits are ready.
+
+**bstack** pushes dedicated remote branches and creates one pull request for each commit.
 
 ### Start a stack
 
