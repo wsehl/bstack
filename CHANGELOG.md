@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/wsehl/bstack/compare/v1.1.0...v1.1.1) (2026-08-22)
+
+
+### Miscellaneous Chores
+
+* add license ([3b14b5e](https://github.com/wsehl/bstack/commit/3b14b5e24b23163b90fdb9008abbf9c85cda3645))
+
 ## [1.1.0](https://github.com/wsehl/bstack/compare/v1.0.4...v1.1.0) (2026-08-22)
 
 
