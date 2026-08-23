@@ -21,6 +21,39 @@ afterEach(() => {
 });
 
 describe("stack sync", () => {
+  test("preserves staged, unstaged, and untracked changes", () => {
+    const fixture = createRepository();
+    const repository = new GitCliRepository(
+      fixture.worktree,
+      new NodeCommandRunner(),
+    );
+    const github = new FakeGitHub();
+    const reporter = new RecordingReporter();
+
+    writeFileSync(join(fixture.worktree, "first.txt"), "unstaged\n");
+    writeFileSync(join(fixture.worktree, "staged.txt"), "staged\n");
+    git(fixture.worktree, "add", "staged.txt");
+    writeFileSync(join(fixture.worktree, "untracked.txt"), "untracked\n");
+    const statusBefore = git(
+      fixture.worktree,
+      "status",
+      "--porcelain=v1",
+    ).stdout;
+
+    const result = sync(repository, github, {
+      base: "main",
+      remote: "origin",
+      draft: false,
+      dryRun: false,
+      reporter,
+    });
+
+    expect(result.rewritten).toBe(true);
+    expect(git(fixture.worktree, "status", "--porcelain=v1").stdout).toBe(
+      statusBefore,
+    );
+  });
+
   test.each([
     ["bottom", 0],
     ["middle", 1],

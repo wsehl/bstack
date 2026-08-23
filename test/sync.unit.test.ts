@@ -129,6 +129,8 @@ class SyncRepository implements GitRepository {
 
   assertReady() {}
 
+  assertClean() {}
+
   currentBranch() {
     return "feature";
   }

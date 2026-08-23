@@ -14,6 +14,7 @@ export type BranchUpdate = {
 
 export interface GitRepository {
   assertReady(): void;
+  assertClean(): void;
   currentBranch(): string;
   resolveRemote(requested?: string): string;
   fetchBase(remote: string, base: string): string;
@@ -41,13 +42,13 @@ export class GitCliRepository implements GitRepository {
 
   assertReady() {
     this.git(["rev-parse", "--show-toplevel"]);
+  }
 
+  assertClean() {
     const status = this.git(["status", "--porcelain"]).stdout;
 
     if (status.trim()) {
-      throw new Error(
-        "The working tree must be clean before bstack rewrites commits or pushes branches",
-      );
+      throw new Error("The working tree must be clean before checkout");
     }
   }
 

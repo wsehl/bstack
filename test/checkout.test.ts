@@ -76,6 +76,8 @@ class CheckoutRepository implements GitRepository {
 
   assertReady() {}
 
+  assertClean() {}
+
   currentBranch() {
     return "feature";
   }

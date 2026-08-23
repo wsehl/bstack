@@ -28,6 +28,7 @@ export function checkoutStack(
 
   reporter.progress("Checking the repository and GitHub prerequisites");
   repository.assertReady();
+  repository.assertClean();
   github.assertReady();
 
   const remote = repository.resolveRemote(options.remote);
