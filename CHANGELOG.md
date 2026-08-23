@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.6](https://github.com/wsehl/bstack/compare/v1.1.5...v1.1.6) (2026-08-23)
+
+
+### Bug Fixes
+
+* **sync:** allow syncing with a dirty working tree ([25b52eb](https://github.com/wsehl/bstack/commit/25b52ebe91d360eda3e1cf78cf6d8c2e76877836))
+
 ## [1.1.5](https://github.com/wsehl/bstack/compare/v1.1.4...v1.1.5) (2026-08-22)
 
 
