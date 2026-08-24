@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/wsehl/bstack/compare/v1.3.0...v1.4.0) (2026-08-24)
+
+
+### Features
+
+* **sync:** report PR outcomes by number ([4ff4529](https://github.com/wsehl/bstack/commit/4ff452991e7836dd8dbad6f0afc23893144b3ec2))
+
 ## [1.3.0](https://github.com/wsehl/bstack/compare/v1.2.1...v1.3.0) (2026-08-24)
 
 
