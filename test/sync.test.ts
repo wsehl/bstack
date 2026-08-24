@@ -291,6 +291,10 @@ describe("stack sync", () => {
     expect(first.changes.every((change) => !change.pullRequest?.isDraft)).toBe(
       true,
     );
+    expect(first.changes.map((change) => change.outcome)).toEqual([
+      "created",
+      "created",
+    ]);
     expect(
       git(fixture.worktree, "branch", "--format=%(refname:short)")
         .stdout.trim()
@@ -358,6 +362,7 @@ describe("stack sync", () => {
       reporter,
     });
     expect(checkedOutPrefix.changes).toHaveLength(1);
+    expect(checkedOutPrefix.changes[0]!.outcome).toBe("unchanged");
     expect(reporter.messages).toContain(
       "Updating this down-stack prefix while preserving higher pull requests",
     );
@@ -382,6 +387,10 @@ describe("stack sync", () => {
     expect(second.changes.map((change) => change.pullRequest?.number)).toEqual(
       first.changes.map((change) => change.pullRequest?.number),
     );
+    expect(second.changes.map((change) => change.outcome)).toEqual([
+      "unchanged",
+      "updated",
+    ]);
     expect(github.linkCalls).toHaveLength(2);
 
     const firstCommit = git(

@@ -103,13 +103,19 @@ function main(): void {
     },
   );
 
+  const changeCount = `${result.changes.length} change${result.changes.length === 1 ? "" : "s"}`;
   console.log(
-    `${values["dry-run"] ? "Would sync" : "Synced"} ${result.changes.length} change${result.changes.length === 1 ? "" : "s"} against ${result.base}:`,
+    values["dry-run"]
+      ? `Would sync ${changeCount} against ${result.base}:`
+      : `Synced stack against ${result.base} (${changeCount}):`,
   );
 
   for (const change of result.changes) {
+    const outcome = change.outcome ? `${change.outcome.padEnd(9)} ` : "";
     const destination = change.pullRequest ? ` ${change.pullRequest.url}` : "";
-    console.log(`  ${change.oid.slice(0, 8)}  ${change.subject}${destination}`);
+    console.log(
+      `  ${outcome}${change.oid.slice(0, 8)}  ${change.subject}${destination}`,
+    );
   }
 }
 

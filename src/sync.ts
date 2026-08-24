@@ -28,7 +28,12 @@ export type SyncResult = {
   base: string;
   remote: string;
   rewritten: boolean;
-  changes: Array<StackChange & { pullRequest?: PullRequest }>;
+  changes: Array<
+    StackChange & {
+      pullRequest?: PullRequest;
+      outcome?: "created" | "updated" | "unchanged";
+    }
+  >;
 };
 
 export function syncStack(
@@ -121,14 +126,16 @@ export function syncStack(
   reporter.progress(
     `Pushing ${changes.length} remote branch${changes.length === 1 ? "" : "es"}`,
   );
+  let pushedBranches = new Set<string>();
   try {
-    repository.pushBranches(
+    const updatedBranches = repository.pushBranches(
       remote,
       changes.map((change) => ({
         name: change.remoteBranch,
         oid: change.oid,
       })),
     );
+    pushedBranches = new Set(updatedBranches);
   } catch (error) {
     if (isReorder) {
       restorePreviousStack(github, previous!, base, remote, reporter, error);
@@ -152,6 +159,11 @@ export function syncStack(
 
     return github.createPullRequest(change, pullRequestBase, options.draft);
   });
+  const createdBranches = new Set(
+    changes
+      .filter((_change, index) => existing[index] === undefined)
+      .map((change) => change.remoteBranch),
+  );
 
   if (changes.length === 1) {
     if (transition.kind === "partial") {
@@ -293,8 +305,52 @@ export function syncStack(
     changes: changes.map((change, index) => ({
       ...change,
       pullRequest: pullRequests[index]!,
+      outcome: changeOutcome(
+        change,
+        index,
+        pullRequests[index]!,
+        previous,
+        changes,
+        base,
+        createdBranches,
+        pushedBranches,
+      ),
     })),
   };
+}
+
+function changeOutcome(
+  change: StackChange,
+  index: number,
+  pullRequest: PullRequest,
+  previous: StoredStack | undefined,
+  changes: readonly StackChange[],
+  base: string,
+  createdBranches: ReadonlySet<string>,
+  pushedBranches: ReadonlySet<string>,
+): "created" | "updated" | "unchanged" {
+  if (createdBranches.has(change.remoteBranch)) {
+    return "created";
+  }
+
+  const previousIndex = previous?.changes.findIndex(
+    (candidate) => candidate.id === change.id,
+  );
+  const previousBase =
+    previousIndex === undefined || previousIndex < 0
+      ? undefined
+      : previousIndex === 0
+        ? previous!.base
+        : previous!.changes[previousIndex - 1]!.remoteBranch;
+  const currentBase = index === 0 ? base : changes[index - 1]!.remoteBranch;
+  const metadataChanged =
+    pullRequest.title !== change.subject || pullRequest.body !== change.body;
+  const updated =
+    pushedBranches.has(change.remoteBranch) ||
+    previousBase !== currentBase ||
+    metadataChanged;
+
+  return updated ? "updated" : "unchanged";
 }
 
 function restorePreviousStack(

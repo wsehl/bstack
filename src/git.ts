@@ -23,7 +23,7 @@ export interface GitRepository {
   mergeBase(left: string, right: string): string;
   commitsSince(baseOid: string): Commit[];
   rewriteCommits(rewrites: readonly CommitRewrite[]): string[];
-  pushBranches(remote: string, branches: readonly BranchUpdate[]): void;
+  pushBranches(remote: string, branches: readonly BranchUpdate[]): string[];
   statePath(): string;
 }
 
@@ -175,6 +175,10 @@ export class GitCliRepository implements GitRepository {
     }
 
     this.git(["push", "--atomic", ...leases, remote, ...refspecs]);
+
+    return branches
+      .filter((branch) => existing.get(branch.name) !== branch.oid)
+      .map((branch) => branch.name);
   }
 
   statePath() {

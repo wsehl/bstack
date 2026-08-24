@@ -141,7 +141,7 @@ class CheckoutRepository implements GitRepository {
     return [];
   }
 
-  pushBranches() {
+  pushBranches(): string[] {
     throw new Error("Unexpected branch push");
   }
 

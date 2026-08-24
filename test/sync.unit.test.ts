@@ -218,6 +218,8 @@ class SyncRepository implements GitRepository {
       throw this.failPushWith;
     }
     this.pushCalls.push({ remote, branches: [...branches] });
+
+    return branches.map((branch) => branch.name);
   }
 
   statePath() {
