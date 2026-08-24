@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/wsehl/bstack/compare/v1.2.1...v1.3.0) (2026-08-24)
+
+
+### Features
+
+* **sync:** report per-PR sync outcomes ([0173bd0](https://github.com/wsehl/bstack/commit/0173bd01de303abb8b45b6db30d79d90a824b272))
+
 ## [1.2.1](https://github.com/wsehl/bstack/compare/v1.2.0...v1.2.1) (2026-08-24)
 
 
