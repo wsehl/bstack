@@ -89,6 +89,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
       "--json",
       "number,url,state,title,body,isDraft",
     ]).stdout;
+
     const candidates = v.parse(v.array(pullRequestSchema), JSON.parse(raw));
 
     const selected =

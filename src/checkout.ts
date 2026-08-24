@@ -27,8 +27,12 @@ export function checkoutStack(
   const { repository, github, reporter } = dependencies;
 
   reporter.progress("Checking the repository and GitHub prerequisites");
+
   repository.assertReady();
-  repository.assertClean();
+  if (!repository.isClean()) {
+    throw new Error("The working tree must be clean before checkout");
+  }
+
   github.assertReady();
 
   const remote = repository.resolveRemote(options.remote);

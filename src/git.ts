@@ -14,8 +14,8 @@ export type BranchUpdate = {
 
 export interface GitRepository {
   assertReady(): void;
-  assertClean(): void;
-  currentBranch(): string;
+  isClean(): boolean;
+  currentBranch(): string | undefined;
   resolveRemote(requested?: string): string;
   fetchBase(remote: string, base: string): string;
   fetchRemoteBranch(remote: string, branch: string): string;
@@ -44,18 +44,18 @@ export class GitCliRepository implements GitRepository {
     this.git(["rev-parse", "--show-toplevel"]);
   }
 
-  assertClean() {
+  isClean() {
     const status = this.git(["status", "--porcelain"]).stdout;
 
-    if (status.trim()) {
-      throw new Error("The working tree must be clean before checkout");
-    }
+    return status.trim() === "";
   }
 
   currentBranch() {
-    return this.git(["symbolic-ref", "--quiet", "--short", "HEAD"], {
+    const branch = this.git(["symbolic-ref", "--quiet", "--short", "HEAD"], {
       allowFailure: true,
     }).stdout.trim();
+
+    return branch || undefined;
   }
 
   resolveRemote(requested?: string) {
@@ -154,6 +154,7 @@ export class GitCliRepository implements GitRepository {
 
     const oldHead = rewrites.at(-1)!.commit.oid;
     const newHead = rewrittenOids.at(-1)!;
+
     this.git(["update-ref", "HEAD", newHead, oldHead]);
 
     return rewrittenOids;
@@ -172,6 +173,7 @@ export class GitCliRepository implements GitRepository {
       leases.push(`--force-with-lease=refs/heads/${branch.name}:${expected}`);
       refspecs.push(`${branch.oid}:refs/heads/${branch.name}`);
     }
+
     this.git(["push", "--atomic", ...leases, remote, ...refspecs]);
   }
 

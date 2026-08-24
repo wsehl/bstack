@@ -91,7 +91,7 @@ export function syncStack(
   const state = stateStore.read();
   const previous = stack.findPrevious(state);
   const transition = stack.transitionFrom(previous, {
-    preserveHigherChanges: repository.currentBranch() === "",
+    preserveHigherChanges: repository.currentBranch() === undefined,
     lookups: {
       pullRequestState: (pullRequest) => github.pullRequest(pullRequest).state,
       stackNumberForPullRequest: (pullRequest) =>

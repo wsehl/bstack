@@ -6,6 +6,27 @@ import type { PullRequest } from "../src/model";
 import type { Reporter } from "../src/reporter";
 
 describe("stack checkout", () => {
+  test("refuses checkout when the working tree is dirty", () => {
+    const repository = new CheckoutRepository();
+    repository.clean = false;
+    const github = new CheckoutGitHub("bstack/user/change-id");
+
+    expect(() =>
+      checkoutStack(
+        { repository, github, reporter: silentReporter },
+        {
+          reference: "42",
+          base: undefined,
+          remote: undefined,
+          sameBase: false,
+        },
+      ),
+    ).toThrow("The working tree must be clean before checkout");
+    expect(repository.fetchedBranches).toEqual([]);
+    expect(repository.checkedOutRefs).toEqual([]);
+    expect(github.delegatedReferences).toEqual([]);
+  });
+
   test("delegates ordinary pull requests to GitHub CLI", () => {
     const repository = new CheckoutRepository();
     const github = new CheckoutGitHub("feature/ordinary");
@@ -73,10 +94,13 @@ class CheckoutRepository implements GitRepository {
   readonly fetchedBranches: Array<{ remote: string; branch: string }> = [];
   readonly checkedOutRefs: string[] = [];
   mergeBases = ["base"];
+  clean = true;
 
   assertReady() {}
 
-  assertClean() {}
+  isClean() {
+    return this.clean;
+  }
 
   currentBranch() {
     return "feature";
