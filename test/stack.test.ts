@@ -17,10 +17,20 @@ describe("stack transition analysis", () => {
       expected: { kind: "full" },
     },
     {
-      name: "links the full stack when changes are appended",
+      name: "appends changes to a known native stack",
       previous: stack("a", "b"),
       changes: changes("a", "b", "c"),
-      expected: { kind: "full" },
+      expected: {
+        kind: "append",
+        stackNumber: 7,
+        branches: ["bstack/c"],
+      },
+    },
+    {
+      name: "skips an unchanged submitted stack",
+      previous: stack("a", "b"),
+      changes: changes("a", "b"),
+      expected: { kind: "skip" },
     },
     {
       name: "rebuilds when a change is inserted",

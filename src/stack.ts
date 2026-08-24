@@ -144,10 +144,26 @@ export class Stack {
     );
 
     if (removed.length === 0) {
-      const onlyAppended = previousIds.every(
+      const previousIsPrefix = previousIds.every(
         (id, index) => currentIds[index] === id,
       );
-      if (onlyAppended) {
+      if (previousIsPrefix && added.length === 0) {
+        return { kind: "skip" } satisfies StackTransition;
+      }
+      if (previousIsPrefix) {
+        const stackNumber =
+          previous.stackNumber ??
+          options.lookups.stackNumberForPullRequest(
+            previous.changes[0]!.pullRequest,
+          );
+        if (stackNumber !== undefined) {
+          return {
+            kind: "append",
+            stackNumber,
+            branches: added.map((change) => change.remoteBranch),
+          } satisfies StackTransition;
+        }
+
         return { kind: "full" } satisfies StackTransition;
       }
       const stackNumber =

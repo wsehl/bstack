@@ -43,6 +43,7 @@ describe("stack sync integration", () => {
       "unchanged",
       "unchanged",
     ]);
+    expect(github.linkCalls).toHaveLength(1);
     expect(
       commands.filter(
         (command) => command[0] === "git" && command[1] === "push",
@@ -484,7 +485,7 @@ describe("stack sync integration", () => {
       "unchanged",
       "updated",
     ]);
-    expect(github.linkCalls).toHaveLength(2);
+    expect(github.linkCalls).toHaveLength(1);
 
     const firstCommit = git(
       fixture.worktree,
@@ -513,7 +514,21 @@ describe("stack sync integration", () => {
 
     expect(afterMerge.changes).toHaveLength(1);
     expect(afterMerge.changes[0]!.id).toBe(second.changes[1]!.id);
-    expect(github.linkCalls).toHaveLength(2);
+    expect(github.linkCalls).toHaveLength(1);
+
+    const repeatedAfterMerge = sync(repository, github, {
+      base: "main",
+      remote: "origin",
+      draft: false,
+      dryRun: false,
+      reporter,
+    });
+
+    expect(repeatedAfterMerge.outcomes[0]!.outcome).toBe("unchanged");
+    expect(github.linkCalls).toHaveLength(1);
+    expect(reporter.messages).toContain(
+      "The native GitHub stack already has the correct members",
+    );
   });
 });
 
