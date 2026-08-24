@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/wsehl/bstack/compare/v1.4.0...v1.4.1) (2026-08-24)
+
+
+### Tests
+
+* **checkout:** add git integration coverage ([80c71b2](https://github.com/wsehl/bstack/commit/80c71b299ad17b917bb65bb7c5cf9970228487c6))
+
 ## [1.4.0](https://github.com/wsehl/bstack/compare/v1.3.0...v1.4.0) (2026-08-24)
 
 
