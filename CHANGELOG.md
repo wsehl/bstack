@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/wsehl/bstack/compare/v1.2.0...v1.2.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **sync:** close pull requests for omitted commits ([a0bcf07](https://github.com/wsehl/bstack/commit/a0bcf0736e82222033df45e304fe913635a20b63))
+
 ## [1.2.0](https://github.com/wsehl/bstack/compare/v1.1.6...v1.2.0) (2026-08-24)
 
 
