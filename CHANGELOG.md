@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/wsehl/bstack/compare/v1.1.6...v1.2.0) (2026-08-24)
+
+
+### Features
+
+* **sync:** create and reorder pull requests by stable identity ([f2afa3e](https://github.com/wsehl/bstack/commit/f2afa3e0b6c29eb8e1d3925e68c44d5d6f119ee6))
+
+
+### Code Refactoring
+
+* **git:** expose repository state as queries ([cd9fbc0](https://github.com/wsehl/bstack/commit/cd9fbc03de8e4fd7701507026f65c526a7286be3))
+
 ## [1.1.6](https://github.com/wsehl/bstack/compare/v1.1.5...v1.1.6) (2026-08-23)
 
 
