@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { CommandOptions, CommandRunner } from "../src/command";
 import { GitHubCliPlatform } from "../src/github";
-import type { StackChange } from "../src/model";
+import type { PullRequest, StackChange } from "../src/model";
 
 describe("pull request creation and stack linking", () => {
   test("creates pull requests with final metadata before linking by number", () => {
@@ -13,17 +13,8 @@ describe("pull request creation and stack linking", () => {
     github.linkStack([1, 2], "main", "origin", false);
     const draft = github.createPullRequest(change, "bstack/previous", true);
     github.linkStack([1, 2], "main", "origin", true);
-    github.editPullRequestBase(
-      {
-        number: 1,
-        url: "https://example.test/pull/1",
-        state: "OPEN",
-        title: "Add one",
-        body: "",
-        isDraft: false,
-      },
-      "main",
-    );
+    github.editPullRequestBase(pullRequest, "main");
+    github.closePullRequest(pullRequest);
 
     expect(ready).toMatchObject({
       number: 1,
@@ -57,6 +48,7 @@ describe("pull request creation and stack linking", () => {
       "--base",
       "main",
     ]);
+    expect(runner.commands).toContainEqual(["gh", "pr", "close", "1"]);
   });
 });
 
@@ -66,6 +58,15 @@ const change: StackChange = {
   subject: "Add one",
   body: "",
   remoteBranch: "bstack/one",
+};
+
+const pullRequest: PullRequest = {
+  number: 1,
+  url: "https://example.test/pull/1",
+  state: "OPEN",
+  title: "Add one",
+  body: "",
+  isDraft: false,
 };
 
 class RecordingRunner implements CommandRunner {

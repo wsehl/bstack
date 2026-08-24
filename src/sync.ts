@@ -230,6 +230,23 @@ export function syncStack(
     }
   }
 
+  const currentIds = new Set(changes.map((change) => change.id));
+  const omittedPullRequests =
+    transition.kind === "partial"
+      ? []
+      : (previous?.changes ?? [])
+          .filter((change) => !currentIds.has(change.id))
+          .map((change) => github.pullRequest(change.pullRequest))
+          .filter((pullRequest) => pullRequest.state === "OPEN");
+  if (omittedPullRequests.length > 0) {
+    reporter.progress(
+      `Closing ${omittedPullRequests.length} omitted pull request${omittedPullRequests.length === 1 ? "" : "s"}`,
+    );
+    for (const pullRequest of omittedPullRequests) {
+      github.closePullRequest(pullRequest);
+    }
+  }
+
   reporter.progress("Synchronizing pull request titles and descriptions");
   for (const [index, pr] of pullRequests.entries()) {
     github.editPullRequest(pr, changes[index]!);

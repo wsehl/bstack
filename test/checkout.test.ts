@@ -189,6 +189,10 @@ class CheckoutGitHub implements GitHubPlatform {
     throw new Error("Unexpected unstack");
   }
 
+  closePullRequest() {
+    throw new Error("Unexpected pull request close");
+  }
+
   editPullRequestBase() {
     throw new Error("Unexpected pull request edit");
   }

@@ -107,7 +107,7 @@ describe("stack sync", () => {
       );
       expect(
         github.prs.get(submitted.changes[index]!.remoteBranch)?.state,
-      ).toBe("OPEN");
+      ).toBe("CLOSED");
       expect(
         new FileStateStore(repository.statePath()).read().stacks[0]!.changes,
       ).toEqual(
@@ -156,6 +156,9 @@ describe("stack sync", () => {
       { pullRequest: survivor.pullRequest!.number, base: "main" },
     ]);
     expect(github.linkCalls).toHaveLength(1);
+    expect(github.prs.get(submitted.changes[0]!.remoteBranch)?.state).toBe(
+      "CLOSED",
+    );
     expect(stored.stackNumber).toBeUndefined();
     expect(stored.changes).toHaveLength(1);
   });
@@ -482,6 +485,19 @@ class FakeGitHub implements GitHubPlatform {
 
   unstack(stackNumber: number) {
     this.unstackCalls.push(stackNumber);
+  }
+
+  closePullRequest(pr: PullRequest) {
+    const entry = [...this.prs.entries()].find(
+      ([, candidate]) => candidate.number === pr.number,
+    );
+    if (!entry) {
+      throw new Error(`Missing fake PR ${pr.number}`);
+    }
+    this.prs.set(entry[0], {
+      ...entry[1],
+      state: "CLOSED",
+    });
   }
 
   editPullRequestBase(pr: PullRequest, base: string) {

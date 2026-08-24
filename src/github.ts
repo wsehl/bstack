@@ -46,6 +46,7 @@ export interface GitHubPlatform {
     draft: boolean,
   ): void;
   unstack(stackNumber: number): void;
+  closePullRequest(pr: PullRequest): void;
   editPullRequestBase(pr: PullRequest, base: string): void;
   editPullRequest(pr: PullRequest, change: StackChange): void;
   stackNumberForPullRequest(prNumber: number): number | undefined;
@@ -187,6 +188,10 @@ export class GitHubCliPlatform implements GitHubPlatform {
 
   unstack(stackNumber: number) {
     this.gh(["stack", "unstack", String(stackNumber)]);
+  }
+
+  closePullRequest(pr: PullRequest) {
+    this.gh(["pr", "close", String(pr.number)]);
   }
 
   editPullRequestBase(pr: PullRequest, base: string) {

@@ -303,6 +303,10 @@ class SyncGitHub implements GitHubPlatform {
     this.unstackCalls.push(stackNumber);
   }
 
+  closePullRequest() {
+    this.mutations.push("close");
+  }
+
   editPullRequestBase() {
     this.mutations.push("edit-base");
   }
