@@ -28,13 +28,20 @@ export type SyncResult = {
   base: string;
   remote: string;
   rewritten: boolean;
-  changes: Array<
-    StackChange & {
-      pullRequest?: PullRequest;
-      outcome?: "created" | "updated" | "unchanged";
-    }
-  >;
+  changes: Array<StackChange & { pullRequest?: PullRequest }>;
+  outcomes: SyncOutcome[];
 };
+
+export type SyncOutcome =
+  | {
+      outcome: "created" | "updated" | "unchanged";
+      change: StackChange;
+      pullRequest: PullRequest;
+    }
+  | {
+      outcome: "closed";
+      pullRequest: PullRequest;
+    };
 
 export function syncStack(
   dependencies: SyncDependencies,
@@ -88,7 +95,13 @@ export function syncStack(
     reporter.progress(
       "Dry run complete; no commits or remote branches were changed",
     );
-    return { base, remote, rewritten, changes: [...changes] };
+    return {
+      base,
+      remote,
+      rewritten,
+      changes: [...changes],
+      outcomes: [],
+    };
   }
 
   reporter.progress("Reading the previous stack state");
@@ -298,24 +311,37 @@ export function syncStack(
   writeUpdatedState(stateStore, state, previous, updatedStack);
   reporter.progress("Saved the local stack state");
 
+  const synchronized = changes.map((change, index) => ({
+    ...change,
+    pullRequest: pullRequests[index]!,
+  }));
+  const outcomes: SyncOutcome[] = synchronized.map((change, index) => ({
+    outcome: changeOutcome(
+      change,
+      index,
+      change.pullRequest,
+      previous,
+      changes,
+      base,
+      createdBranches,
+      pushedBranches,
+    ),
+    change,
+    pullRequest: change.pullRequest,
+  }));
+  outcomes.push(
+    ...omittedPullRequests.map((pullRequest): SyncOutcome => ({
+      outcome: "closed",
+      pullRequest,
+    })),
+  );
+
   return {
     base,
     remote,
     rewritten,
-    changes: changes.map((change, index) => ({
-      ...change,
-      pullRequest: pullRequests[index]!,
-      outcome: changeOutcome(
-        change,
-        index,
-        pullRequests[index]!,
-        previous,
-        changes,
-        base,
-        createdBranches,
-        pushedBranches,
-      ),
-    })),
+    changes: synchronized,
+    outcomes,
   };
 }
 

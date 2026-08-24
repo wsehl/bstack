@@ -6,6 +6,7 @@ import { NodeCommandRunner } from "./command";
 import { checkoutStack } from "./checkout";
 import { GitCliRepository } from "./git";
 import { GitHubCliPlatform } from "./github";
+import { formatSyncResult } from "./output";
 import { ConsoleReporter } from "./reporter";
 import { FileStateStore } from "./state";
 import { syncStack } from "./sync";
@@ -103,20 +104,7 @@ function main(): void {
     },
   );
 
-  const changeCount = `${result.changes.length} change${result.changes.length === 1 ? "" : "s"}`;
-  console.log(
-    values["dry-run"]
-      ? `Would sync ${changeCount} against ${result.base}:`
-      : `Synced stack against ${result.base} (${changeCount}):`,
-  );
-
-  for (const change of result.changes) {
-    const outcome = change.outcome ? `${change.outcome.padEnd(9)} ` : "";
-    const destination = change.pullRequest ? ` ${change.pullRequest.url}` : "";
-    console.log(
-      `  ${outcome}${change.oid.slice(0, 8)}  ${change.subject}${destination}`,
-    );
-  }
+  console.log(formatSyncResult(result, values["dry-run"]));
 }
 
 try {

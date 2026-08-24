@@ -109,6 +109,11 @@ describe("stack sync", () => {
         github.prs.get(submitted.changes[index]!.remoteBranch)?.state,
       ).toBe("CLOSED");
       expect(
+        updated.outcomes
+          .filter((outcome) => outcome.outcome === "closed")
+          .map((outcome) => outcome.pullRequest.number),
+      ).toEqual([submitted.changes[index]!.pullRequest!.number]);
+      expect(
         new FileStateStore(repository.statePath()).read().stacks[0]!.changes,
       ).toEqual(
         surviving.map((change) => ({
@@ -291,7 +296,7 @@ describe("stack sync", () => {
     expect(first.changes.every((change) => !change.pullRequest?.isDraft)).toBe(
       true,
     );
-    expect(first.changes.map((change) => change.outcome)).toEqual([
+    expect(first.outcomes.map((outcome) => outcome.outcome)).toEqual([
       "created",
       "created",
     ]);
@@ -362,7 +367,7 @@ describe("stack sync", () => {
       reporter,
     });
     expect(checkedOutPrefix.changes).toHaveLength(1);
-    expect(checkedOutPrefix.changes[0]!.outcome).toBe("unchanged");
+    expect(checkedOutPrefix.outcomes[0]!.outcome).toBe("unchanged");
     expect(reporter.messages).toContain(
       "Updating this down-stack prefix while preserving higher pull requests",
     );
@@ -387,7 +392,7 @@ describe("stack sync", () => {
     expect(second.changes.map((change) => change.pullRequest?.number)).toEqual(
       first.changes.map((change) => change.pullRequest?.number),
     );
-    expect(second.changes.map((change) => change.outcome)).toEqual([
+    expect(second.outcomes.map((outcome) => outcome.outcome)).toEqual([
       "unchanged",
       "updated",
     ]);

@@ -29,6 +29,7 @@ describe("stack sync boundaries", () => {
 
     expect(result.rewritten).toBe(true);
     expect(result.changes).toHaveLength(1);
+    expect(result.outcomes).toEqual([]);
     expect(repository.rewriteCalls).toEqual([]);
     expect(repository.pushCalls).toEqual([]);
     expect(stateStore.readCount).toBe(0);
