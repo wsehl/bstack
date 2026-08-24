@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.5.0](https://github.com/wsehl/bstack/compare/v1.4.0...v1.5.0) (2026-08-24)
+
+
+### Features
+
+* **sync:** reject duplicate IDs and skip unchanged pushes ([f79c7c2](https://github.com/wsehl/bstack/commit/f79c7c2b680a5c724b9a3106d9a8a3d8ef4a59dc))
+
+
+### Bug Fixes
+
+* **sync:** skip relinking unchanged stack members after merge ([c9ab681](https://github.com/wsehl/bstack/commit/c9ab681cca2f015ce4f0bb12156e79e3e213fb37))
+
+
+### Tests
+
+* **checkout:** add git integration coverage ([80c71b2](https://github.com/wsehl/bstack/commit/80c71b299ad17b917bb65bb7c5cf9970228487c6))
+
 ## [1.4.0](https://github.com/wsehl/bstack/compare/v1.3.0...v1.4.0) (2026-08-24)
 
 
