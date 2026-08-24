@@ -103,7 +103,7 @@ describe("stack sync", () => {
       ).toEqual(surviving.map((change) => change.pullRequest?.number));
       expect(github.unstackCalls).toEqual([7]);
       expect(github.linkCalls.at(-1)).toEqual(
-        surviving.map((change) => change.remoteBranch),
+        surviving.map((change) => change.pullRequest!.number),
       );
       expect(
         github.prs.get(submitted.changes[index]!.remoteBranch)?.state,
@@ -160,7 +160,7 @@ describe("stack sync", () => {
     expect(stored.changes).toHaveLength(1);
   });
 
-  test("rejects reordering submitted pull requests", () => {
+  test("rebuilds reordered pull requests without changing their identities", () => {
     const fixture = createRepository();
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
@@ -186,11 +186,31 @@ describe("stack sync", () => {
     git(fixture.worktree, "branch", "-f", "feature", "HEAD");
     git(fixture.worktree, "switch", "feature");
 
-    expect(() => sync(repository, github, options)).toThrow(
-      "Submitted commits cannot be reordered",
+    const reordered = sync(repository, github, options);
+
+    expect(reordered.changes.map((change) => change.id)).toEqual(
+      [...submitted.changes].reverse().map((change) => change.id),
     );
-    expect(github.unstackCalls).toEqual([]);
-    expect(github.linkCalls).toHaveLength(1);
+    expect(
+      reordered.changes.map((change) => change.pullRequest?.number),
+    ).toEqual(
+      [...submitted.changes]
+        .reverse()
+        .map((change) => change.pullRequest?.number),
+    );
+    expect(github.unstackCalls).toEqual([7]);
+    expect(github.baseEditCalls).toEqual(
+      submitted.changes.map((change) => ({
+        pullRequest: change.pullRequest!.number,
+        base: "main",
+      })),
+    );
+    expect(github.linkCalls.at(-1)).toEqual(
+      reordered.changes.map((change) => change.pullRequest!.number),
+    );
+    expect(reporter.messages).toContain(
+      "Rebuilding stack #7 to reorder pull requests",
+    );
   });
 
   test("inserts a new change below submitted pull requests", () => {
@@ -233,7 +253,7 @@ describe("stack sync", () => {
       updated.changes.slice(1).map((change) => change.pullRequest?.number),
     ).toEqual(submitted.changes.map((change) => change.pullRequest?.number));
     expect(github.linkCalls.at(-1)).toEqual(
-      updated.changes.map((change) => change.remoteBranch),
+      updated.changes.map((change) => change.pullRequest!.number),
     );
     expect(github.unstackCalls).toEqual([7]);
     expect(reporter.messages).toContain(
@@ -289,6 +309,21 @@ describe("stack sync", () => {
       ),
     ).toHaveLength(2);
     expect(github.linkCalls).toHaveLength(1);
+    expect(github.createCalls).toEqual([
+      {
+        subject: "First change",
+        base: "main",
+        draft: false,
+      },
+      {
+        subject: "Second change",
+        base: first.changes[0]!.remoteBranch,
+        draft: false,
+      },
+    ]);
+    expect(github.linkCalls[0]).toEqual(
+      first.changes.map((change) => change.pullRequest!.number),
+    );
     expect(reporter.messages).toContain(
       "Linking 2 pull requests as a native GitHub stack",
     );
@@ -387,7 +422,12 @@ class RecordingReporter implements Reporter {
 
 class FakeGitHub implements GitHubPlatform {
   readonly prs = new Map<string, PullRequest>();
-  readonly linkCalls: string[][] = [];
+  readonly linkCalls: number[][] = [];
+  readonly createCalls: Array<{
+    subject: string;
+    base: string;
+    draft: boolean;
+  }> = [];
   readonly unstackCalls: number[] = [];
   readonly baseEditCalls: Array<{ pullRequest: number; base: string }> = [];
   private nextPr = 100;
@@ -416,40 +456,28 @@ class FakeGitHub implements GitHubPlatform {
     return pr;
   }
 
-  createPullRequest(change: StackChange, _base: string, draft: boolean) {
+  createPullRequest(change: StackChange, base: string, draft: boolean) {
+    this.createCalls.push({ subject: change.subject, base, draft });
+
     return this.create(change, draft);
   }
 
   linkStack(
-    branches: readonly string[],
+    pullRequests: readonly number[],
     _base: string,
     _remote: string,
-    draft: boolean,
+    _draft: boolean,
   ) {
-    this.linkCalls.push([...branches]);
-    for (const branch of branches) {
-      if (!this.prs.has(branch)) {
-        this.create(
-          {
-            id: branch,
-            oid: "",
-            subject: branch,
-            body: "",
-            remoteBranch: branch,
-          },
-          draft,
-        );
-      }
-    }
+    this.linkCalls.push([...pullRequests]);
   }
 
   appendToStack(
     _stackNumber: number,
-    branches: readonly string[],
+    pullRequests: readonly number[],
     remote: string,
     draft: boolean,
   ) {
-    this.linkStack(branches, "", remote, draft);
+    this.linkStack(pullRequests, "", remote, draft);
   }
 
   unstack(stackNumber: number) {

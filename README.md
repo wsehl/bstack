@@ -73,6 +73,11 @@ git rebase --continue
 bstack
 ```
 
+### Reorder pull requests
+
+Reorder the corresponding commits with Git, then run `bstack` again.
+`bstack` keeps the existing pull request identities and rebuilds the native GitHub stack in the new commit order.
+
 Stacks cannot contain merge commits.
 When `main` moves, rebase your branch onto it instead of merging `main` into your branch.
 

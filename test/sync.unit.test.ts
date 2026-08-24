@@ -78,15 +78,60 @@ describe("stack sync boundaries", () => {
     expect(github.unstackCalls).toEqual([7]);
     expect(github.linkCalls).toEqual([
       {
-        branches: [
-          "bstack/test-user/new",
-          "bstack/test-user/one",
-          "bstack/test-user/two",
-        ],
+        pullRequests: [3, 1, 2],
         draft: false,
       },
       {
-        branches: previousBranches,
+        pullRequests: [1, 2],
+        draft: true,
+      },
+    ]);
+    expect(stateStore.writes).toEqual([]);
+  });
+
+  test("restores the previous stack when a reordered branch push fails", () => {
+    const repository = new SyncRepository([commit("two"), commit("one")]);
+    const github = new SyncGitHub();
+    const stateStore = new RecordingStateStore({
+      schemaVersion: 1,
+      stacks: [
+        {
+          remote: "origin",
+          base: "main",
+          stackNumber: 7,
+          changes: ["one", "two"].map((id, index) => ({
+            id,
+            remoteBranch: `bstack/test-user/${id}`,
+            pullRequest: index + 1,
+            url: `https://example.test/pull/${index + 1}`,
+          })),
+        },
+      ],
+    });
+    const pushError = new Error("push failed");
+    repository.failPushWith = pushError;
+
+    expect(() =>
+      syncStack(
+        { repository, github, stateStore, reporter: silentReporter },
+        {
+          base: "main",
+          remote: "origin",
+          draft: false,
+          dryRun: false,
+        },
+      ),
+    ).toThrow(pushError);
+    expect(github.unstackCalls).toEqual([7]);
+    expect(github.mutations).toEqual([
+      "unstack",
+      "edit-base",
+      "edit-base",
+      "link",
+    ]);
+    expect(github.linkCalls).toEqual([
+      {
+        pullRequests: [1, 2],
         draft: true,
       },
     ]);
@@ -124,6 +169,7 @@ class SyncRepository implements GitRepository {
     remote: string;
     branches: readonly BranchUpdate[];
   }> = [];
+  failPushWith: Error | undefined;
 
   constructor(private readonly commits: Commit[]) {}
 
@@ -168,6 +214,9 @@ class SyncRepository implements GitRepository {
   }
 
   pushBranches(remote: string, branches: readonly BranchUpdate[]) {
+    if (this.failPushWith) {
+      throw this.failPushWith;
+    }
     this.pushCalls.push({ remote, branches: [...branches] });
   }
 
@@ -179,7 +228,7 @@ class SyncRepository implements GitRepository {
 class SyncGitHub implements GitHubPlatform {
   readonly mutations: string[] = [];
   readonly unstackCalls: number[] = [];
-  readonly linkCalls: Array<{ branches: string[]; draft: boolean }> = [];
+  readonly linkCalls: Array<{ pullRequests: number[]; draft: boolean }> = [];
   failNextLinkWith: Error | undefined;
 
   assertReady() {}
@@ -231,13 +280,13 @@ class SyncGitHub implements GitHubPlatform {
   }
 
   linkStack(
-    branches: readonly string[],
+    pullRequests: readonly number[],
     _base: string,
     _remote: string,
     draft: boolean,
   ) {
     this.mutations.push("link");
-    this.linkCalls.push({ branches: [...branches], draft });
+    this.linkCalls.push({ pullRequests: [...pullRequests], draft });
     if (this.failNextLinkWith) {
       const error = this.failNextLinkWith;
       this.failNextLinkWith = undefined;

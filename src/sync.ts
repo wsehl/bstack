@@ -99,35 +99,67 @@ export function syncStack(
     },
   });
 
+  const isReorder =
+    transition.kind === "rebuild" && transition.action === "reorder";
+  if (isReorder) {
+    reporter.progress(
+      `Preparing stack #${transition.stackNumber} for reordered branches`,
+    );
+    github.unstack(transition.stackNumber);
+    try {
+      for (const change of previous!.changes) {
+        github.editPullRequestBase(
+          github.pullRequest(change.pullRequest),
+          base,
+        );
+      }
+    } catch (error) {
+      restorePreviousStack(github, previous!, base, remote, reporter, error);
+    }
+  }
+
   reporter.progress(
     `Pushing ${changes.length} remote branch${changes.length === 1 ? "" : "es"}`,
   );
-  repository.pushBranches(
-    remote,
-    changes.map((change) => ({
-      name: change.remoteBranch,
-      oid: change.oid,
-    })),
-  );
+  try {
+    repository.pushBranches(
+      remote,
+      changes.map((change) => ({
+        name: change.remoteBranch,
+        oid: change.oid,
+      })),
+    );
+  } catch (error) {
+    if (isReorder) {
+      restorePreviousStack(github, previous!, base, remote, reporter, error);
+    }
+    throw error;
+  }
 
   reporter.progress("Looking up existing pull requests");
   const existing = changes.map((change) =>
     github.pullRequestForBranch(change.remoteBranch),
   );
-  let pullRequests: PullRequest[];
+  const pullRequests = changes.map((change, index) => {
+    const current = existing[index];
+    if (current) {
+      return current;
+    }
+
+    const pullRequestBase =
+      index === 0 ? base : changes[index - 1]!.remoteBranch;
+    reporter.progress(`Creating pull request: ${change.subject}`);
+
+    return github.createPullRequest(change, pullRequestBase, options.draft);
+  });
+
   if (changes.length === 1) {
     if (transition.kind === "partial") {
       reporter.progress(
         "Updating this down-stack prefix while preserving higher pull requests",
       );
     }
-    reporter.progress(
-      existing[0]
-        ? "Using the existing pull request"
-        : "Creating a pull request",
-    );
-    const pullRequest =
-      existing[0] ?? github.createPullRequest(changes[0]!, base, options.draft);
+    const pullRequest = pullRequests[0]!;
     if (transition.kind === "collapse") {
       reporter.progress(
         `Removing omitted pull requests from stack #${transition.stackNumber}`,
@@ -139,14 +171,13 @@ export function syncStack(
         restorePreviousStack(github, previous!, base, remote, reporter, error);
       }
     }
-    pullRequests = [pullRequest];
   } else {
     if (transition.kind === "full") {
       reporter.progress(
         `Linking ${changes.length} pull requests as a native GitHub stack`,
       );
       github.linkStack(
-        changes.map((change) => change.remoteBranch),
+        pullRequests.map((pullRequest) => pullRequest.number),
         base,
         remote,
         options.draft,
@@ -155,10 +186,12 @@ export function syncStack(
       reporter.progress(
         `Rebuilding stack #${transition.stackNumber} to ${transition.action} pull requests`,
       );
-      github.unstack(transition.stackNumber);
+      if (!isReorder) {
+        github.unstack(transition.stackNumber);
+      }
       try {
         github.linkStack(
-          changes.map((change) => change.remoteBranch),
+          pullRequests.map((pullRequest) => pullRequest.number),
           base,
           remote,
           options.draft,
@@ -172,7 +205,17 @@ export function syncStack(
       );
       github.appendToStack(
         transition.stackNumber,
-        transition.branches,
+        transition.branches.map((branch) => {
+          const index = changes.findIndex(
+            (change) => change.remoteBranch === branch,
+          );
+          const pullRequest = pullRequests[index];
+          if (!pullRequest) {
+            throw new Error(`Missing pull request for ${branch}`);
+          }
+
+          return pullRequest.number;
+        }),
         remote,
         options.draft,
       );
@@ -185,16 +228,6 @@ export function syncStack(
         "The native GitHub stack already has the correct members",
       );
     }
-    pullRequests = changes.map((change, index) => {
-      const pr =
-        existing[index] ?? github.pullRequestForBranch(change.remoteBranch);
-      if (!pr) {
-        throw new Error(
-          `GitHub did not return a PR for ${change.remoteBranch}`,
-        );
-      }
-      return pr;
-    });
   }
 
   reporter.progress("Synchronizing pull request titles and descriptions");
@@ -262,7 +295,7 @@ function restorePreviousStack(
   );
   try {
     github.linkStack(
-      previous.changes.map((change) => change.remoteBranch),
+      previous.changes.map((change) => change.pullRequest),
       base,
       remote,
       true,

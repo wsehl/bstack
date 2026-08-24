@@ -11,6 +11,15 @@ const pullRequestSchema = v.object({
   isDraft: v.boolean(),
 });
 
+const createdPullRequestSchema = v.object({
+  number: v.number(),
+  html_url: v.string(),
+  state: v.picklist(["open", "closed"]),
+  title: v.string(),
+  body: v.nullable(v.string()),
+  draft: v.boolean(),
+});
+
 const stackSchema = v.object({ number: v.number() });
 
 export interface GitHubPlatform {
@@ -25,14 +34,14 @@ export interface GitHubPlatform {
     draft: boolean,
   ): PullRequest;
   linkStack(
-    branches: readonly string[],
+    pullRequests: readonly number[],
     base: string,
     remote: string,
     draft: boolean,
   ): void;
   appendToStack(
     stackNumber: number,
-    branches: readonly string[],
+    pullRequests: readonly number[],
     remote: string,
     draft: boolean,
   ): void;
@@ -111,36 +120,41 @@ export class GitHubCliPlatform implements GitHubPlatform {
     return v.parse(pullRequestSchema, JSON.parse(raw));
   }
 
-  createPullRequest(change: StackChange, base: string, draft: boolean) {
-    const args = [
-      "pr",
-      "create",
-      "--base",
-      base,
-      "--head",
-      change.remoteBranch,
-      "--title",
-      change.subject,
-      "--body",
-      change.body,
-    ];
-    if (draft) {
-      args.push("--draft");
-    }
-    this.gh(args);
+  createPullRequest(
+    change: StackChange,
+    base: string,
+    draft: boolean,
+  ): PullRequest {
+    const raw = this.gh([
+      "api",
+      "--method",
+      "POST",
+      "repos/{owner}/{repo}/pulls",
+      "--raw-field",
+      `base=${base}`,
+      "--raw-field",
+      `head=${change.remoteBranch}`,
+      "--raw-field",
+      `title=${change.subject}`,
+      "--raw-field",
+      `body=${change.body}`,
+      "--field",
+      `draft=${draft}`,
+    ]).stdout;
+    const created = v.parse(createdPullRequestSchema, JSON.parse(raw));
 
-    const created = this.pullRequestForBranch(change.remoteBranch);
-    if (!created) {
-      throw new Error(
-        `GitHub did not return the PR created for ${change.remoteBranch}`,
-      );
-    }
-
-    return created;
+    return {
+      number: created.number,
+      url: created.html_url,
+      state: created.state === "open" ? "OPEN" : "CLOSED",
+      title: created.title,
+      body: created.body ?? "",
+      isDraft: created.draft,
+    };
   }
 
   linkStack(
-    branches: readonly string[],
+    pullRequests: readonly number[],
     base: string,
     remote: string,
     draft: boolean,
@@ -150,14 +164,14 @@ export class GitHubCliPlatform implements GitHubPlatform {
     if (!draft) {
       args.push("--open");
     }
-    args.push(...branches);
+    args.push(...pullRequests.map(String));
 
     this.gh(args);
   }
 
   appendToStack(
     stackNumber: number,
-    branches: readonly string[],
+    pullRequests: readonly number[],
     remote: string,
     draft: boolean,
   ) {
@@ -166,7 +180,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     if (!draft) {
       args.push("--open");
     }
-    args.push(String(stackNumber), ...branches);
+    args.push(String(stackNumber), ...pullRequests.map(String));
 
     this.gh(args);
   }

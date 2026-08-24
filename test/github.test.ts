@@ -3,16 +3,16 @@ import type { CommandOptions, CommandRunner } from "../src/command";
 import { GitHubCliPlatform } from "../src/github";
 import type { StackChange } from "../src/model";
 
-describe("pull request visibility", () => {
-  test("creates ready pull requests by default and drafts when requested", () => {
+describe("pull request creation and stack linking", () => {
+  test("creates pull requests with final metadata before linking by number", () => {
     const runner = new RecordingRunner();
     const github = new GitHubCliPlatform("/repo", runner);
 
     expect(github.currentUserLogin()).toBe("wsehl");
-    github.createPullRequest(change, "main", false);
-    github.linkStack(["bstack/one", "bstack/two"], "main", "origin", false);
-    github.createPullRequest(change, "main", true);
-    github.linkStack(["bstack/one", "bstack/two"], "main", "origin", true);
+    const ready = github.createPullRequest(change, "main", false);
+    github.linkStack([1, 2], "main", "origin", false);
+    const draft = github.createPullRequest(change, "bstack/previous", true);
+    github.linkStack([1, 2], "main", "origin", true);
     github.editPullRequestBase(
       {
         number: 1,
@@ -25,17 +25,30 @@ describe("pull request visibility", () => {
       "main",
     );
 
-    const createCommands = runner.commands.filter(
-      (command) => command[1] === "pr" && command[2] === "create",
+    expect(ready).toMatchObject({
+      number: 1,
+      title: change.subject,
+      body: change.body,
+      isDraft: false,
+    });
+    expect(draft.isDraft).toBe(true);
+
+    const createCommands = runner.commands.filter((command) =>
+      command.includes("repos/{owner}/{repo}/pulls"),
     );
-    expect(createCommands[0]).not.toContain("--draft");
-    expect(createCommands[1]).toContain("--draft");
+    expect(createCommands[0]).toContain(`title=${change.subject}`);
+    expect(createCommands[0]).toContain(`body=${change.body}`);
+    expect(createCommands[0]).toContain("base=main");
+    expect(createCommands[0]).toContain("draft=false");
+    expect(createCommands[1]).toContain("base=bstack/previous");
+    expect(createCommands[1]).toContain("draft=true");
 
     const linkCommands = runner.commands.filter(
       (command) => command[1] === "stack" && command[2] === "link",
     );
     expect(linkCommands[0]).toContain("--open");
     expect(linkCommands[1]).not.toContain("--open");
+    expect(linkCommands[0]?.slice(-2)).toEqual(["1", "2"]);
     expect(runner.commands).toContainEqual([
       "gh",
       "pr",
@@ -60,22 +73,20 @@ class RecordingRunner implements CommandRunner {
 
   run(command: readonly string[], _options: CommandOptions) {
     this.commands.push([...command]);
-    const isList = command[1] === "pr" && command[2] === "list";
+    const isCreate = command.includes("repos/{owner}/{repo}/pulls");
     const isCurrentUser = command[1] === "api" && command[2] === "user";
     return {
       stdout: isCurrentUser
         ? "wsehl\n"
-        : isList
-          ? JSON.stringify([
-              {
-                number: 1,
-                url: "https://example.test/pull/1",
-                state: "OPEN",
-                title: change.subject,
-                body: change.body,
-                isDraft: false,
-              },
-            ])
+        : isCreate
+          ? JSON.stringify({
+              number: 1,
+              html_url: "https://example.test/pull/1",
+              state: "open",
+              title: change.subject,
+              body: change.body,
+              draft: command.includes("draft=true"),
+            })
           : "",
       stderr: "",
       exitCode: 0,

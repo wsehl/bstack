@@ -13,7 +13,7 @@ export type StackTransition =
   | {
       kind: "rebuild";
       stackNumber: number;
-      action: "insert" | "remove" | "update";
+      action: "insert" | "remove" | "reorder" | "update";
     }
   | { kind: "collapse"; stackNumber: number }
   | { kind: "skip" }
@@ -117,15 +117,6 @@ export class Stack {
     const currentIds = this.changes.map((change) => change.id);
     const previousIdSet = new Set(previousIds);
     const currentIdSet = new Set(currentIds);
-    const sharedPrevious = previousIds.filter((id) => currentIdSet.has(id));
-    const sharedCurrent = currentIds.filter((id) => previousIdSet.has(id));
-
-    if (!sameSequence(sharedPrevious, sharedCurrent)) {
-      throw new Error(
-        "Submitted commits cannot be reordered. Restore their original relative order before syncing",
-      );
-    }
-
     const removed = previous.changes.filter(
       (change) => !currentIdSet.has(change.id),
     );
@@ -151,7 +142,7 @@ export class Stack {
         : ({
             kind: "rebuild",
             stackNumber,
-            action: "insert",
+            action: added.length === 0 ? "reorder" : "insert",
           } satisfies StackTransition);
     }
 
@@ -234,14 +225,4 @@ export class Stack {
       action: added.length === 0 ? "remove" : "update",
     } satisfies StackTransition;
   }
-}
-
-function sameSequence(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
 }

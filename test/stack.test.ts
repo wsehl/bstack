@@ -29,6 +29,12 @@ describe("stack transition analysis", () => {
       expected: { kind: "rebuild", stackNumber: 7, action: "insert" },
     },
     {
+      name: "rebuilds when submitted changes are reordered",
+      previous: stack("a", "b", "c"),
+      changes: changes("c", "a", "b"),
+      expected: { kind: "rebuild", stackNumber: 7, action: "reorder" },
+    },
+    {
       name: "removes a merged prefix without rebuilding",
       previous: stack("a", "b", "c"),
       changes: changes("b", "c"),
@@ -84,18 +90,6 @@ describe("stack transition analysis", () => {
     );
 
     expect(transition).toEqual({ kind: "partial", previousOffset: 1 });
-  });
-
-  test("rejects reordered submitted changes", () => {
-    expect(() =>
-      Stack.fromChanges(changes("c", "b")).transitionFrom(
-        stack("a", "b", "c"),
-        {
-          preserveHigherChanges: false,
-          lookups: lookups(),
-        },
-      ),
-    ).toThrow("Submitted commits cannot be reordered");
   });
 
   test("uses a discovered stack number when local state lacks one", () => {
