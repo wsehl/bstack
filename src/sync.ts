@@ -1,4 +1,4 @@
-import type { GitRepository } from "./git";
+import type { GitRepository, PushResult } from "./git";
 import type { GitHubPlatform } from "./github";
 import type {
   PullRequest,
@@ -9,6 +9,11 @@ import type {
 import type { Reporter } from "./reporter";
 import { Stack } from "./stack";
 import type { StateStore } from "./state";
+import {
+  applyStackTransition,
+  prepareStackTransition,
+  restorePreviousStack,
+} from "./sync-transition";
 
 export type SyncDependencies = {
   repository: GitRepository;
@@ -117,38 +122,20 @@ export function syncStack(
     },
   });
 
+  prepareStackTransition(transition, github, previous, base, remote, reporter);
   const isReorder =
     transition.kind === "rebuild" && transition.action === "reorder";
-  if (isReorder) {
-    reporter.progress(
-      `Preparing stack #${transition.stackNumber} for reordered branches`,
-    );
-    github.unstack(transition.stackNumber);
-    try {
-      for (const change of previous!.changes) {
-        github.editPullRequestBase(
-          github.pullRequest(change.pullRequest),
-          base,
-        );
-      }
-    } catch (error) {
-      restorePreviousStack(github, previous!, base, remote, reporter, error);
-    }
-  }
-
-  reporter.progress(
-    `Pushing ${changes.length} remote branch${changes.length === 1 ? "" : "es"}`,
-  );
   let pushedBranches = new Set<string>();
   try {
-    const updatedBranches = repository.pushBranches(
+    const pushResult = repository.pushBranches(
       remote,
       changes.map((change) => ({
         name: change.remoteBranch,
         oid: change.oid,
       })),
     );
-    pushedBranches = new Set(updatedBranches);
+    reportPushResult(reporter, pushResult);
+    pushedBranches = new Set(pushResult.updated);
   } catch (error) {
     if (isReorder) {
       restorePreviousStack(github, previous!, base, remote, reporter, error);
@@ -178,82 +165,17 @@ export function syncStack(
       .map((change) => change.remoteBranch),
   );
 
-  if (changes.length === 1) {
-    if (transition.kind === "partial") {
-      reporter.progress(
-        "Updating this down-stack prefix while preserving higher pull requests",
-      );
-    }
-    const pullRequest = pullRequests[0]!;
-    if (transition.kind === "collapse") {
-      reporter.progress(
-        `Removing omitted pull requests from stack #${transition.stackNumber}`,
-      );
-      github.unstack(transition.stackNumber);
-      try {
-        github.editPullRequestBase(pullRequest, base);
-      } catch (error) {
-        restorePreviousStack(github, previous!, base, remote, reporter, error);
-      }
-    }
-  } else {
-    if (transition.kind === "full") {
-      reporter.progress(
-        `Linking ${changes.length} pull requests as a native GitHub stack`,
-      );
-      github.linkStack(
-        pullRequests.map((pullRequest) => pullRequest.number),
-        base,
-        remote,
-        options.draft,
-      );
-    } else if (transition.kind === "rebuild") {
-      reporter.progress(
-        `Rebuilding stack #${transition.stackNumber} to ${transition.action} pull requests`,
-      );
-      if (!isReorder) {
-        github.unstack(transition.stackNumber);
-      }
-      try {
-        github.linkStack(
-          pullRequests.map((pullRequest) => pullRequest.number),
-          base,
-          remote,
-          options.draft,
-        );
-      } catch (error) {
-        restorePreviousStack(github, previous!, base, remote, reporter, error);
-      }
-    } else if (transition.kind === "append") {
-      reporter.progress(
-        `Appending ${transition.branches.length} pull request${transition.branches.length === 1 ? "" : "s"} to stack #${transition.stackNumber}`,
-      );
-      github.appendToStack(
-        transition.stackNumber,
-        transition.branches.map((branch) => {
-          const index = changes.findIndex(
-            (change) => change.remoteBranch === branch,
-          );
-          const pullRequest = pullRequests[index];
-          if (!pullRequest) {
-            throw new Error(`Missing pull request for ${branch}`);
-          }
-
-          return pullRequest.number;
-        }),
-        remote,
-        options.draft,
-      );
-    } else if (transition.kind === "partial") {
-      reporter.progress(
-        "Updating this down-stack prefix while preserving higher pull requests",
-      );
-    } else {
-      reporter.progress(
-        "The native GitHub stack already has the correct members",
-      );
-    }
-  }
+  applyStackTransition(
+    transition,
+    github,
+    previous,
+    changes,
+    pullRequests,
+    base,
+    remote,
+    options.draft,
+    reporter,
+  );
 
   const currentIds = new Set(changes.map((change) => change.id));
   const omittedPullRequests =
@@ -379,36 +301,18 @@ function changeOutcome(
   return updated ? "updated" : "unchanged";
 }
 
-function restorePreviousStack(
-  github: GitHubPlatform,
-  previous: StoredStack,
-  base: string,
-  remote: string,
-  reporter: Reporter,
-  rebuildError: unknown,
-): never {
-  const rebuildMessage =
-    rebuildError instanceof Error ? rebuildError.message : String(rebuildError);
-  reporter.progress(
-    "Rebuild failed; restoring the previous native GitHub stack",
-  );
-  try {
-    github.linkStack(
-      previous.changes.map((change) => change.pullRequest),
-      base,
-      remote,
-      true,
+function reportPushResult(reporter: Reporter, result: PushResult): void {
+  if (result.updated.length === 0) {
+    reporter.progress(
+      `All ${result.checked} remote branch${result.checked === 1 ? "" : "es"} already match`,
     );
-  } catch (rollbackError) {
-    const rollbackMessage =
-      rollbackError instanceof Error
-        ? rollbackError.message
-        : String(rollbackError);
-    throw new Error(
-      `Stack rebuild failed: ${rebuildMessage}\nRestoring the previous stack also failed: ${rollbackMessage}`,
-    );
+
+    return;
   }
-  throw rebuildError;
+
+  reporter.progress(
+    `Updating ${result.updated.length} of ${result.checked} remote branch${result.checked === 1 ? "" : "es"}`,
+  );
 }
 
 function writeUpdatedState(

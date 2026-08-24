@@ -1,19 +1,23 @@
+import { fromPartial } from "@total-typescript/shoehorn";
 import { describe, expect, test } from "vitest";
 import { checkoutStack } from "../src/checkout";
 import type { GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
-import type { PullRequest } from "../src/model";
 import type { Reporter } from "../src/reporter";
 
 describe("stack checkout", () => {
   test("refuses checkout when the working tree is dirty", () => {
-    const repository = new CheckoutRepository();
+    const repository = new FakeCheckoutRepository();
     repository.clean = false;
-    const github = new CheckoutGitHub("bstack/user/change-id");
+    const github = new FakeCheckoutGitHub("bstack/user/change-id");
 
     expect(() =>
       checkoutStack(
-        { repository, github, reporter: silentReporter },
+        {
+          repository: fromPartial<GitRepository>(repository),
+          github: fromPartial<GitHubPlatform>(github),
+          reporter: silentReporter,
+        },
         {
           reference: "42",
           base: undefined,
@@ -28,11 +32,15 @@ describe("stack checkout", () => {
   });
 
   test("delegates ordinary pull requests to GitHub CLI", () => {
-    const repository = new CheckoutRepository();
-    const github = new CheckoutGitHub("feature/ordinary");
+    const repository = new FakeCheckoutRepository();
+    const github = new FakeCheckoutGitHub("feature/ordinary");
 
     const result = checkoutStack(
-      { repository, github, reporter: silentReporter },
+      {
+        repository: fromPartial<GitRepository>(repository),
+        github: fromPartial<GitHubPlatform>(github),
+        reporter: silentReporter,
+      },
       {
         reference: "42",
         base: undefined,
@@ -51,16 +59,20 @@ describe("stack checkout", () => {
   });
 
   test("refuses a bstack checkout that would change the merge base", () => {
-    const repository = new CheckoutRepository();
+    const repository = new FakeCheckoutRepository();
     repository.mergeBases = [
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     ];
-    const github = new CheckoutGitHub("bstack/user/change-id");
+    const github = new FakeCheckoutGitHub("bstack/user/change-id");
 
     expect(() =>
       checkoutStack(
-        { repository, github, reporter: silentReporter },
+        {
+          repository: fromPartial<GitRepository>(repository),
+          github: fromPartial<GitHubPlatform>(github),
+          reporter: silentReporter,
+        },
         {
           reference: "42",
           base: "main",
@@ -81,16 +93,7 @@ const silentReporter: Reporter = {
   progress() {},
 };
 
-const pullRequest: PullRequest = {
-  number: 1,
-  url: "https://example.test/pull/1",
-  state: "OPEN",
-  title: "Change",
-  body: "",
-  isDraft: false,
-};
-
-class CheckoutRepository implements GitRepository {
+class FakeCheckoutRepository {
   readonly fetchedBranches: Array<{ remote: string; branch: string }> = [];
   readonly checkedOutRefs: string[] = [];
   mergeBases = ["base"];
@@ -100,10 +103,6 @@ class CheckoutRepository implements GitRepository {
 
   isClean() {
     return this.clean;
-  }
-
-  currentBranch() {
-    return "feature";
   }
 
   resolveRemote(requested?: string) {
@@ -132,77 +131,17 @@ class CheckoutRepository implements GitRepository {
 
     return mergeBase;
   }
-
-  commitsSince() {
-    return [];
-  }
-
-  rewriteCommits() {
-    return [];
-  }
-
-  pushBranches(): string[] {
-    throw new Error("Unexpected branch push");
-  }
-
-  statePath() {
-    return "/repo/.git/bstack/state.json";
-  }
 }
 
-class CheckoutGitHub implements GitHubPlatform {
+class FakeCheckoutGitHub {
   readonly delegatedReferences: string[] = [];
 
   constructor(private readonly headRef: string) {}
 
   assertReady() {}
 
-  currentUserLogin() {
-    return "test-user";
-  }
-
   defaultBranch() {
     return "main";
-  }
-
-  pullRequestForBranch() {
-    return undefined;
-  }
-
-  pullRequest() {
-    return pullRequest;
-  }
-
-  createPullRequest() {
-    return pullRequest;
-  }
-
-  linkStack() {
-    throw new Error("Unexpected stack link");
-  }
-
-  appendToStack() {
-    throw new Error("Unexpected stack append");
-  }
-
-  unstack() {
-    throw new Error("Unexpected unstack");
-  }
-
-  closePullRequest() {
-    throw new Error("Unexpected pull request close");
-  }
-
-  editPullRequestBase() {
-    throw new Error("Unexpected pull request edit");
-  }
-
-  editPullRequest() {
-    throw new Error("Unexpected pull request edit");
-  }
-
-  stackNumberForPullRequest() {
-    return undefined;
   }
 
   pullRequestHead() {

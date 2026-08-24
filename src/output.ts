@@ -5,7 +5,7 @@ export function formatSyncResult(result: SyncResult, dryRun: boolean): string {
   const lines = [
     dryRun
       ? `Would sync ${changeCount} against ${result.base}:`
-      : `Synced stack against ${result.base} (${changeCount}):`,
+      : `Synced ${result.changes.length}-commit stack against ${result.base}:`,
   ];
 
   if (dryRun) {

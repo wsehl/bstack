@@ -12,6 +12,11 @@ export type BranchUpdate = {
   oid: string;
 };
 
+export type PushResult = {
+  checked: number;
+  updated: string[];
+};
+
 export interface GitRepository {
   assertReady(): void;
   isClean(): boolean;
@@ -23,7 +28,7 @@ export interface GitRepository {
   mergeBase(left: string, right: string): string;
   commitsSince(baseOid: string): Commit[];
   rewriteCommits(rewrites: readonly CommitRewrite[]): string[];
-  pushBranches(remote: string, branches: readonly BranchUpdate[]): string[];
+  pushBranches(remote: string, branches: readonly BranchUpdate[]): PushResult;
   statePath(): string;
 }
 
@@ -165,10 +170,21 @@ export class GitCliRepository implements GitRepository {
       remote,
       branches.map((branch) => branch.name),
     );
+    const updates = branches.filter(
+      (branch) => existing.get(branch.name) !== branch.oid,
+    );
+
+    if (updates.length === 0) {
+      return {
+        checked: branches.length,
+        updated: [],
+      };
+    }
+
     const leases: string[] = [];
     const refspecs: string[] = [];
 
-    for (const branch of branches) {
+    for (const branch of updates) {
       const expected = existing.get(branch.name) ?? "";
       leases.push(`--force-with-lease=refs/heads/${branch.name}:${expected}`);
       refspecs.push(`${branch.oid}:refs/heads/${branch.name}`);
@@ -176,9 +192,10 @@ export class GitCliRepository implements GitRepository {
 
     this.git(["push", "--atomic", ...leases, remote, ...refspecs]);
 
-    return branches
-      .filter((branch) => existing.get(branch.name) !== branch.oid)
-      .map((branch) => branch.name);
+    return {
+      checked: branches.length,
+      updated: updates.map((branch) => branch.name),
+    };
   }
 
   statePath() {

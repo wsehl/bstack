@@ -1,5 +1,5 @@
 import { addChangeId, generateChangeId, splitCommitMessage } from "./commit";
-import type { CommitRewrite, GitRepository } from "./git";
+import type { CommitRewrite } from "./git";
 import type {
   Commit,
   PullRequest,
@@ -30,6 +30,10 @@ export type StackTransitionOptions = {
   lookups: StackTransitionLookups;
 };
 
+export interface CommitRewriter {
+  rewriteCommits(rewrites: readonly CommitRewrite[]): string[];
+}
+
 export class Stack {
   private constructor(
     readonly changes: readonly StackChange[],
@@ -38,6 +42,21 @@ export class Stack {
   ) {
     if (changes.length === 0) {
       throw new Error("A stack must contain at least one change");
+    }
+
+    const seen = new Set<string>();
+    const duplicate = changes.find((change) => {
+      if (seen.has(change.id)) {
+        return true;
+      }
+      seen.add(change.id);
+
+      return false;
+    });
+    if (duplicate) {
+      throw new Error(
+        `A stack cannot contain duplicate bstack-id ${duplicate.id}`,
+      );
     }
   }
 
@@ -72,7 +91,7 @@ export class Stack {
     return new Stack(changes, rewritten, rewrites);
   }
 
-  writeChangeIds(repository: GitRepository) {
+  writeChangeIds(repository: CommitRewriter) {
     if (!this.rewritten) {
       return this;
     }

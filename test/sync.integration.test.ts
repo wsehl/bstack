@@ -13,6 +13,91 @@ import { syncStack, type SyncOptions, type SyncResult } from "../src/sync";
 import { test } from "./fixtures/temp-dir";
 
 describe("stack sync integration", () => {
+  test("does not push when every remote branch already matches", ({
+    temporaryDirectory,
+  }) => {
+    const fixture = createRepository(temporaryDirectory);
+    const commands: string[][] = [];
+    const repository = new GitCliRepository(
+      fixture.worktree,
+      new NodeCommandRunner((command) => commands.push([...command])),
+    );
+    const github = new FakeGitHub();
+    const options = {
+      base: "main",
+      remote: "origin",
+      draft: false,
+      dryRun: false,
+    } as const;
+
+    sync(repository, github, {
+      ...options,
+      reporter: new RecordingReporter(),
+    });
+    commands.length = 0;
+    const reporter = new RecordingReporter();
+
+    const repeated = sync(repository, github, { ...options, reporter });
+
+    expect(repeated.outcomes.map((outcome) => outcome.outcome)).toEqual([
+      "unchanged",
+      "unchanged",
+    ]);
+    expect(
+      commands.filter(
+        (command) => command[0] === "git" && command[1] === "push",
+      ),
+    ).toEqual([]);
+    expect(reporter.messages).toContain("All 2 remote branches already match");
+  });
+
+  test("pushes only branches whose commit OIDs changed", ({
+    temporaryDirectory,
+  }) => {
+    const fixture = createRepository(temporaryDirectory);
+    const commands: string[][] = [];
+    const repository = new GitCliRepository(
+      fixture.worktree,
+      new NodeCommandRunner((command) => commands.push([...command])),
+    );
+    const github = new FakeGitHub();
+    const options = {
+      base: "main",
+      remote: "origin",
+      draft: false,
+      dryRun: false,
+    } as const;
+    const submitted = sync(repository, github, {
+      ...options,
+      reporter: new RecordingReporter(),
+    });
+
+    writeFileSync(join(fixture.worktree, "second.txt"), "amended\n");
+    git(fixture.worktree, "add", "second.txt");
+    git(fixture.worktree, "commit", "--amend", "--no-edit");
+    commands.length = 0;
+    const reporter = new RecordingReporter();
+
+    const updated = sync(repository, github, { ...options, reporter });
+    const pushCommand = commands.find(
+      (command) => command[0] === "git" && command[1] === "push",
+    );
+
+    expect(updated.outcomes.map((outcome) => outcome.outcome)).toEqual([
+      "unchanged",
+      "updated",
+    ]);
+    expect(pushCommand).toContain(
+      `${updated.changes[1]!.oid}:refs/heads/${updated.changes[1]!.remoteBranch}`,
+    );
+    expect(
+      pushCommand?.some((argument) =>
+        argument.endsWith(submitted.changes[0]!.remoteBranch),
+      ),
+    ).toBe(false);
+    expect(reporter.messages).toContain("Updating 1 of 2 remote branches");
+  });
+
   test("preserves staged, unstaged, and untracked changes", ({
     temporaryDirectory,
   }) => {

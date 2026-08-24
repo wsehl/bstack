@@ -37,7 +37,7 @@ describe("sync output", () => {
 
     expect(formatSyncResult(result(changes, outcomes), false))
       .toMatchInlineSnapshot(`
-      "Synced stack against main (3 changes):
+      "Synced 3-commit stack against main:
         created   #11  feat(compiler): implement constant folding for unary minus (#33140) https://example.test/pull/11
         updated   #12  fix(devtools): clear highlight when mouse leaves DevTools panel (#36177) https://example.test/pull/12
         unchanged #13  test(eslint): create eslint test fixtures (#32396) https://example.test/pull/13

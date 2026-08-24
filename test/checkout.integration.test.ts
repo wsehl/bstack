@@ -1,3 +1,4 @@
+import { fromPartial } from "@total-typescript/shoehorn";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -6,7 +7,6 @@ import { checkoutStack } from "../src/checkout";
 import { NodeCommandRunner } from "../src/command";
 import { GitCliRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
-import type { PullRequest } from "../src/model";
 import type { Reporter } from "../src/reporter";
 import { test } from "./fixtures/temp-dir";
 
@@ -24,7 +24,9 @@ describe("stack checkout integration", () => {
     const result = checkoutStack(
       {
         repository,
-        github: new CheckoutGitHub(fixture.headRef),
+        github: fromPartial<GitHubPlatform>(
+          new CheckoutGitHub(fixture.headRef),
+        ),
         reporter,
       },
       {
@@ -69,7 +71,9 @@ describe("stack checkout integration", () => {
       checkoutStack(
         {
           repository,
-          github: new CheckoutGitHub(fixture.headRef),
+          github: fromPartial<GitHubPlatform>(
+            new CheckoutGitHub(fixture.headRef),
+          ),
           reporter: new RecordingReporter(),
         },
         {
@@ -96,14 +100,10 @@ class RecordingReporter implements Reporter {
   }
 }
 
-class CheckoutGitHub implements GitHubPlatform {
+class CheckoutGitHub {
   constructor(private readonly headRef: string) {}
 
   assertReady() {}
-
-  currentUserLogin() {
-    return "test-user";
-  }
 
   defaultBranch() {
     return "main";
@@ -115,46 +115,6 @@ class CheckoutGitHub implements GitHubPlatform {
 
   checkoutPullRequest() {
     throw new Error("Unexpected checkout delegation");
-  }
-
-  pullRequestForBranch(): PullRequest | undefined {
-    throw new Error("Unexpected pull request lookup");
-  }
-
-  pullRequest(): PullRequest {
-    throw new Error("Unexpected pull request lookup");
-  }
-
-  createPullRequest(): PullRequest {
-    throw new Error("Unexpected pull request creation");
-  }
-
-  linkStack() {
-    throw new Error("Unexpected stack link");
-  }
-
-  appendToStack() {
-    throw new Error("Unexpected stack append");
-  }
-
-  unstack() {
-    throw new Error("Unexpected unstack");
-  }
-
-  closePullRequest() {
-    throw new Error("Unexpected pull request close");
-  }
-
-  editPullRequestBase() {
-    throw new Error("Unexpected pull request edit");
-  }
-
-  editPullRequest() {
-    throw new Error("Unexpected pull request edit");
-  }
-
-  stackNumberForPullRequest(): number | undefined {
-    throw new Error("Unexpected stack lookup");
   }
 }
 

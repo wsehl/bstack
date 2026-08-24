@@ -32,6 +32,7 @@
     "valibot": "^1.4.2"
   },
   "devDependencies": {
+    "@total-typescript/shoehorn": "^0.1.2",
     "@types/node": "^26.0.0",
     "oxfmt": "^0.64.0",
     "oxlint": "^1.79.0",

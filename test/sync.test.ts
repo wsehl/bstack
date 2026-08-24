@@ -1,3 +1,4 @@
+import { fromPartial } from "@total-typescript/shoehorn";
 import { describe, expect, test } from "vitest";
 import type { BranchUpdate, CommitRewrite, GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
@@ -12,20 +13,35 @@ import type { StateStore } from "../src/state";
 import { syncStack } from "../src/sync";
 
 describe("stack sync", () => {
+  test("rejects duplicate stable IDs before sync can push", () => {
+    const repository = new SyncRepository([commit("same"), commit("same")]);
+    const github = new SyncGitHub();
+    const stateStore = new RecordingStateStore(emptyState);
+
+    expect(() =>
+      syncStack(dependencies(repository, github, stateStore), {
+        base: "main",
+        remote: "origin",
+        draft: false,
+        dryRun: false,
+      }),
+    ).toThrow("A stack cannot contain duplicate bstack-id same");
+    expect(repository.pushCalls).toEqual([]);
+    expect(stateStore.readCount).toBe(0);
+    expect(github.mutations).toEqual([]);
+  });
+
   test("dry run does not rewrite, push, read state, or change GitHub", () => {
     const repository = new SyncRepository([commit("one", false)]);
     const github = new SyncGitHub();
     const stateStore = new RecordingStateStore(emptyState);
 
-    const result = syncStack(
-      { repository, github, stateStore, reporter: silentReporter },
-      {
-        base: "main",
-        remote: "origin",
-        draft: false,
-        dryRun: true,
-      },
-    );
+    const result = syncStack(dependencies(repository, github, stateStore), {
+      base: "main",
+      remote: "origin",
+      draft: false,
+      dryRun: true,
+    });
 
     expect(result.rewritten).toBe(true);
     expect(result.changes).toHaveLength(1);
@@ -66,15 +82,12 @@ describe("stack sync", () => {
     github.failNextLinkWith = rebuildError;
 
     expect(() =>
-      syncStack(
-        { repository, github, stateStore, reporter: silentReporter },
-        {
-          base: "main",
-          remote: "origin",
-          draft: false,
-          dryRun: false,
-        },
-      ),
+      syncStack(dependencies(repository, github, stateStore), {
+        base: "main",
+        remote: "origin",
+        draft: false,
+        dryRun: false,
+      }),
     ).toThrow(rebuildError);
     expect(github.unstackCalls).toEqual([7]);
     expect(github.linkCalls).toEqual([
@@ -113,15 +126,12 @@ describe("stack sync", () => {
     repository.failPushWith = pushError;
 
     expect(() =>
-      syncStack(
-        { repository, github, stateStore, reporter: silentReporter },
-        {
-          base: "main",
-          remote: "origin",
-          draft: false,
-          dryRun: false,
-        },
-      ),
+      syncStack(dependencies(repository, github, stateStore), {
+        base: "main",
+        remote: "origin",
+        draft: false,
+        dryRun: false,
+      }),
     ).toThrow(pushError);
     expect(github.unstackCalls).toEqual([7]);
     expect(github.mutations).toEqual([
@@ -164,7 +174,7 @@ function commit(id: string, withChangeId = true) {
   };
 }
 
-class SyncRepository implements GitRepository {
+class SyncRepository {
   readonly rewriteCalls: CommitRewrite[][] = [];
   readonly pushCalls: Array<{
     remote: string;
@@ -176,10 +186,6 @@ class SyncRepository implements GitRepository {
 
   assertReady() {}
 
-  isClean() {
-    return true;
-  }
-
   currentBranch() {
     return "feature";
   }
@@ -190,14 +196,6 @@ class SyncRepository implements GitRepository {
 
   fetchBase(remote: string, base: string) {
     return `refs/remotes/${remote}/${base}`;
-  }
-
-  fetchRemoteBranch() {
-    return "remote-branch";
-  }
-
-  checkout() {
-    throw new Error("Unexpected checkout");
   }
 
   mergeBase() {
@@ -220,15 +218,14 @@ class SyncRepository implements GitRepository {
     }
     this.pushCalls.push({ remote, branches: [...branches] });
 
-    return branches.map((branch) => branch.name);
-  }
-
-  statePath() {
-    return "/repo/.git/bstack/state.json";
+    return {
+      checked: branches.length,
+      updated: branches.map((branch) => branch.name),
+    };
   }
 }
 
-class SyncGitHub implements GitHubPlatform {
+class SyncGitHub {
   readonly mutations: string[] = [];
   readonly unstackCalls: number[] = [];
   readonly linkCalls: Array<{ pullRequests: number[]; draft: boolean }> = [];
@@ -321,14 +318,6 @@ class SyncGitHub implements GitHubPlatform {
   stackNumberForPullRequest() {
     return 7;
   }
-
-  pullRequestHead() {
-    return "bstack/test-user/change";
-  }
-
-  checkoutPullRequest() {
-    this.mutations.push("checkout");
-  }
 }
 
 class RecordingStateStore implements StateStore {
@@ -346,4 +335,17 @@ class RecordingStateStore implements StateStore {
   write(state: RepositoryState) {
     this.writes.push(state);
   }
+}
+
+function dependencies(
+  repository: SyncRepository,
+  github: SyncGitHub,
+  stateStore: StateStore,
+) {
+  return {
+    repository: fromPartial<GitRepository>(repository),
+    github: fromPartial<GitHubPlatform>(github),
+    stateStore,
+    reporter: silentReporter,
+  };
 }
