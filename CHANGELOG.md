@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/wsehl/bstack/compare/v1.5.0...v1.5.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* **sync:** rebuild stacks after base and survivor order changes ([6c20767](https://github.com/wsehl/bstack/commit/6c207673d679aae353f190aa4d0af97e6864cffc))
+
 ## [1.5.0](https://github.com/wsehl/bstack/compare/v1.4.0...v1.5.0) (2026-08-24)
 
 
