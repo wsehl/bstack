@@ -13,9 +13,10 @@ export type StackTransition =
   | {
       kind: "rebuild";
       stackNumber: number;
-      action: "insert" | "remove" | "reorder" | "update";
+      action: "change-base" | "insert" | "remove" | "reorder" | "update";
     }
   | { kind: "collapse"; stackNumber: number }
+  | { kind: "retarget" }
   | { kind: "skip" }
   | { kind: "partial"; previousOffset: number }
   | { kind: "append"; stackNumber: number; branches: string[] };
@@ -26,6 +27,7 @@ export type StackTransitionLookups = {
 };
 
 export type StackTransitionOptions = {
+  base: string;
   preserveHigherChanges: boolean;
   lookups: StackTransitionLookups;
 };
@@ -142,15 +144,21 @@ export class Stack {
     const added = this.changes.filter(
       (change) => !previousIdSet.has(change.id),
     );
+    const baseChanged = previous.base !== options.base;
 
     if (removed.length === 0) {
       const previousIsPrefix = previousIds.every(
         (id, index) => currentIds[index] === id,
       );
       if (previousIsPrefix && added.length === 0) {
-        return { kind: "skip" } satisfies StackTransition;
+        return baseChanged
+          ? this.transitionForChangedBase(previous, options)
+          : ({ kind: "skip" } satisfies StackTransition);
       }
       if (previousIsPrefix) {
+        if (baseChanged) {
+          return this.transitionForChangedBase(previous, options);
+        }
         const stackNumber =
           previous.stackNumber ??
           options.lookups.stackNumberForPullRequest(
@@ -199,6 +207,11 @@ export class Stack {
           options.lookups.pullRequestState(change.pullRequest) === "MERGED",
       );
       if (prefixWasMerged) {
+        if (baseChanged) {
+          throw new Error(
+            "Cannot change the stack base while preserving higher pull requests from a detached checkout",
+          );
+        }
         return {
           kind: "partial",
           previousOffset: firstCurrentIndex,
@@ -216,17 +229,29 @@ export class Stack {
           options.lookups.pullRequestState(change.pullRequest) === "MERGED",
       );
     const survivingIds = previousIds.slice(removed.length);
+    const survivingOrderIsUnchanged = survivingIds.every(
+      (id, index) => currentIds[index] === id,
+    );
     const onlyAppendedAfterMergedPrefix =
       removedPrefixWasMerged &&
-      survivingIds.every((id, index) => currentIds[index] === id) &&
+      survivingOrderIsUnchanged &&
       currentIds
         .slice(survivingIds.length)
         .every((id) => !previousIdSet.has(id));
 
-    if (removedPrefixWasMerged && added.length === 0) {
-      return { kind: "skip" } satisfies StackTransition;
+    if (
+      removedPrefixWasMerged &&
+      added.length === 0 &&
+      survivingOrderIsUnchanged
+    ) {
+      return baseChanged
+        ? this.transitionForChangedBase(previous, options)
+        : ({ kind: "skip" } satisfies StackTransition);
     }
     if (onlyAppendedAfterMergedPrefix) {
+      if (baseChanged) {
+        return this.transitionForChangedBase(previous, options);
+      }
       if (previous.stackNumber === undefined) {
         throw new Error(
           "Cannot append after a merge because the native GitHub stack number is missing from local state",
@@ -257,7 +282,30 @@ export class Stack {
     return {
       kind: "rebuild",
       stackNumber,
-      action: added.length === 0 ? "remove" : "update",
+      action:
+        added.length === 0 && removedPrefixWasMerged
+          ? "reorder"
+          : added.length === 0
+            ? "remove"
+            : "update",
     } satisfies StackTransition;
+  }
+
+  private transitionForChangedBase(
+    previous: StoredStack,
+    options: StackTransitionOptions,
+  ): StackTransition {
+    if (this.changes.length === 1) {
+      return { kind: "retarget" };
+    }
+    const stackNumber =
+      previous.stackNumber ??
+      options.lookups.stackNumberForPullRequest(
+        previous.changes[0]!.pullRequest,
+      );
+
+    return stackNumber === undefined
+      ? { kind: "full" }
+      : { kind: "rebuild", stackNumber, action: "change-base" };
   }
 }

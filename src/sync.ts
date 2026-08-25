@@ -114,6 +114,7 @@ export function syncStack(
   const state = stateStore.read();
   const previous = stack.findPrevious(state);
   const transition = stack.transitionFrom(previous, {
+    base,
     preserveHigherChanges: repository.currentBranch() === undefined,
     lookups: {
       pullRequestState: (pullRequest) => github.pullRequest(pullRequest).state,
@@ -122,7 +123,7 @@ export function syncStack(
     },
   });
 
-  prepareStackTransition(transition, github, previous, base, remote, reporter);
+  prepareStackTransition(transition, github, previous, base, reporter);
   const isReorder =
     transition.kind === "rebuild" && transition.action === "reorder";
   let pushedBranches = new Set<string>();
@@ -138,7 +139,7 @@ export function syncStack(
     pushedBranches = new Set(pushResult.updated);
   } catch (error) {
     if (isReorder) {
-      restorePreviousStack(github, previous!, base, remote, reporter, error);
+      restorePreviousStack(github, previous!, reporter, error);
     }
     throw error;
   }

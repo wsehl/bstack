@@ -53,6 +53,44 @@ describe("stack sync", () => {
     expect(github.mutations).toEqual([]);
   });
 
+  test("rebuilds unchanged pull requests when the stack base changes", () => {
+    const repository = new SyncRepository([commit("one"), commit("two")]);
+    const github = new SyncGitHub();
+    const stateStore = new RecordingStateStore({
+      schemaVersion: 1,
+      stacks: [
+        {
+          remote: "origin",
+          base: "main",
+          stackNumber: 7,
+          changes: ["one", "two"].map((id, index) => ({
+            id,
+            remoteBranch: `bstack/test-user/${id}`,
+            pullRequest: index + 1,
+            url: `https://example.test/pull/${index + 1}`,
+          })),
+        },
+      ],
+    });
+
+    syncStack(dependencies(repository, github, stateStore), {
+      base: "release",
+      remote: "origin",
+      draft: false,
+      dryRun: false,
+    });
+
+    expect(github.unstackCalls).toEqual([7]);
+    expect(github.linkCalls).toEqual([
+      {
+        pullRequests: [1, 2],
+        base: "release",
+        draft: false,
+      },
+    ]);
+    expect(stateStore.writes.at(-1)?.stacks[0]?.base).toBe("release");
+  });
+
   test("restores the previous stack when a rebuild fails", () => {
     const repository = new SyncRepository([
       commit("new"),
@@ -93,10 +131,12 @@ describe("stack sync", () => {
     expect(github.linkCalls).toEqual([
       {
         pullRequests: [3, 1, 2],
+        base: "main",
         draft: false,
       },
       {
         pullRequests: [1, 2],
+        base: "main",
         draft: true,
       },
     ]);
@@ -143,6 +183,7 @@ describe("stack sync", () => {
     expect(github.linkCalls).toEqual([
       {
         pullRequests: [1, 2],
+        base: "main",
         draft: true,
       },
     ]);
@@ -228,7 +269,11 @@ class SyncRepository {
 class SyncGitHub {
   readonly mutations: string[] = [];
   readonly unstackCalls: number[] = [];
-  readonly linkCalls: Array<{ pullRequests: number[]; draft: boolean }> = [];
+  readonly linkCalls: Array<{
+    pullRequests: number[];
+    base: string;
+    draft: boolean;
+  }> = [];
   failNextLinkWith: Error | undefined;
 
   assertReady() {}
@@ -281,12 +326,12 @@ class SyncGitHub {
 
   linkStack(
     pullRequests: readonly number[],
-    _base: string,
+    base: string,
     _remote: string,
     draft: boolean,
   ) {
     this.mutations.push("link");
-    this.linkCalls.push({ pullRequests: [...pullRequests], draft });
+    this.linkCalls.push({ pullRequests: [...pullRequests], base, draft });
     if (this.failNextLinkWith) {
       const error = this.failNextLinkWith;
       this.failNextLinkWith = undefined;

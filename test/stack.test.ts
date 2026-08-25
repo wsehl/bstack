@@ -33,6 +33,17 @@ describe("stack transition analysis", () => {
       expected: { kind: "skip" },
     },
     {
+      name: "rebuilds unchanged pull requests when the base changes",
+      previous: stack("a", "b"),
+      changes: changes("a", "b"),
+      base: "release",
+      expected: {
+        kind: "rebuild",
+        stackNumber: 7,
+        action: "change-base",
+      },
+    },
+    {
       name: "rebuilds when a change is inserted",
       previous: stack("a", "b"),
       changes: changes("x", "a", "b"),
@@ -50,6 +61,13 @@ describe("stack transition analysis", () => {
       changes: changes("b", "c"),
       states: { 1: "MERGED" },
       expected: { kind: "skip" },
+    },
+    {
+      name: "rebuilds reordered survivors after removing a merged prefix",
+      previous: stack("a", "b", "c"),
+      changes: changes("c", "b"),
+      states: { 1: "MERGED" },
+      expected: { kind: "rebuild", stackNumber: 7, action: "reorder" },
     },
     {
       name: "appends after a merged prefix",
@@ -81,19 +99,24 @@ describe("stack transition analysis", () => {
       changes: changes("a", "x", "c"),
       expected: { kind: "rebuild", stackNumber: 7, action: "update" },
     },
-  ] as const)("$name", ({ previous, changes, states = {}, expected }) => {
-    const transition = Stack.fromChanges(changes).transitionFrom(previous, {
-      preserveHigherChanges: false,
-      lookups: lookups(states),
-    });
+  ] as const)(
+    "$name",
+    ({ previous, changes, states = {}, base = "main", expected }) => {
+      const transition = Stack.fromChanges(changes).transitionFrom(previous, {
+        base,
+        preserveHigherChanges: false,
+        lookups: lookups(states),
+      });
 
-    expect(transition).toEqual(expected);
-  });
+      expect(transition).toEqual(expected);
+    },
+  );
 
   test("preserves higher changes when syncing a detached down-stack prefix", () => {
     const transition = Stack.fromChanges(changes("b")).transitionFrom(
       stack("a", "b", "c"),
       {
+        base: "main",
         preserveHigherChanges: true,
         lookups: lookups({ 1: "MERGED" }),
       },
@@ -106,6 +129,7 @@ describe("stack transition analysis", () => {
     const transition = Stack.fromChanges(changes("x", "a", "b")).transitionFrom(
       stackWithoutNumber("a", "b"),
       {
+        base: "main",
         preserveHigherChanges: false,
         lookups: lookups({}, 11),
       },
@@ -123,6 +147,7 @@ describe("stack transition analysis", () => {
       Stack.fromChanges(changes("b", "c")).transitionFrom(
         stackWithoutNumber("a", "b"),
         {
+          base: "main",
           preserveHigherChanges: false,
           lookups: lookups({ 1: "MERGED" }, 11),
         },

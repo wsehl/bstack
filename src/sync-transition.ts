@@ -8,7 +8,6 @@ export function prepareStackTransition(
   github: GitHubPlatform,
   previous: StoredStack | undefined,
   base: string,
-  remote: string,
   reporter: Reporter,
 ): void {
   if (transition.kind !== "rebuild" || transition.action !== "reorder") {
@@ -21,10 +20,13 @@ export function prepareStackTransition(
   github.unstack(transition.stackNumber);
   try {
     for (const change of previous!.changes) {
-      github.editPullRequestBase(github.pullRequest(change.pullRequest), base);
+      const pullRequest = github.pullRequest(change.pullRequest);
+      if (pullRequest.state === "OPEN") {
+        github.editPullRequestBase(pullRequest, base);
+      }
     }
   } catch (error) {
-    restorePreviousStack(github, previous!, base, remote, reporter, error);
+    restorePreviousStack(github, previous!, reporter, error);
   }
 }
 
@@ -39,6 +41,13 @@ export function applyStackTransition(
   draft: boolean,
   reporter: Reporter,
 ): void {
+  if (transition.kind === "retarget") {
+    reporter.progress(`Updating the pull request base to ${base}`);
+    github.editPullRequestBase(pullRequests[0]!, base);
+
+    return;
+  }
+
   if (changes.length === 1) {
     if (transition.kind === "partial") {
       reporter.progress(
@@ -53,10 +62,9 @@ export function applyStackTransition(
       try {
         github.editPullRequestBase(pullRequests[0]!, base);
       } catch (error) {
-        restorePreviousStack(github, previous!, base, remote, reporter, error);
+        restorePreviousStack(github, previous!, reporter, error);
       }
     }
-
     return;
   }
 
@@ -75,9 +83,11 @@ export function applyStackTransition(
   }
 
   if (transition.kind === "rebuild") {
-    reporter.progress(
-      `Rebuilding stack #${transition.stackNumber} to ${transition.action} pull requests`,
-    );
+    const reason =
+      transition.action === "change-base"
+        ? `against ${base}`
+        : `to ${transition.action} pull requests`;
+    reporter.progress(`Rebuilding stack #${transition.stackNumber} ${reason}`);
     if (transition.action !== "reorder") {
       github.unstack(transition.stackNumber);
     }
@@ -89,7 +99,7 @@ export function applyStackTransition(
         draft,
       );
     } catch (error) {
-      restorePreviousStack(github, previous!, base, remote, reporter, error);
+      restorePreviousStack(github, previous!, reporter, error);
     }
 
     return;
@@ -133,8 +143,6 @@ export function applyStackTransition(
 export function restorePreviousStack(
   github: GitHubPlatform,
   previous: StoredStack,
-  base: string,
-  remote: string,
   reporter: Reporter,
   rebuildError: unknown,
 ): never {
@@ -144,12 +152,19 @@ export function restorePreviousStack(
     "Rebuild failed; restoring the previous native GitHub stack",
   );
   try {
-    github.linkStack(
-      previous.changes.map((change) => change.pullRequest),
-      base,
-      remote,
-      true,
-    );
+    const pullRequests = previous.changes
+      .map((change) => github.pullRequest(change.pullRequest))
+      .filter((pullRequest) => pullRequest.state === "OPEN");
+    if (pullRequests.length === 1) {
+      github.editPullRequestBase(pullRequests[0]!, previous.base);
+    } else if (pullRequests.length > 1) {
+      github.linkStack(
+        pullRequests.map((pullRequest) => pullRequest.number),
+        previous.base,
+        previous.remote,
+        true,
+      );
+    }
   } catch (rollbackError) {
     const rollbackMessage =
       rollbackError instanceof Error
