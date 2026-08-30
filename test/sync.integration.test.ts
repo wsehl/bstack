@@ -1,15 +1,21 @@
-import { describe, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { NodeCommandRunner } from "../src/command";
-import { checkoutStack } from "../src/checkout";
+
+import { describe, expect } from "vitest";
+
+import { CheckoutCommand } from "../src/commands/checkout";
+import {
+  SyncCommand,
+  type SyncOptions,
+  type SyncResult,
+} from "../src/commands/sync";
 import { GitCliRepository, type GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
 import type { PullRequest, StackChange } from "../src/model";
+import { NodeProcessRunner } from "../src/process-runner";
 import type { Reporter } from "../src/reporter";
 import { FileStateStore } from "../src/state";
-import { syncStack, type SyncOptions, type SyncResult } from "../src/sync";
 import { test } from "./fixtures/temp-dir";
 
 describe("stack sync integration", () => {
@@ -20,7 +26,7 @@ describe("stack sync integration", () => {
     const commands: string[][] = [];
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner((command) => commands.push([...command])),
+      new NodeProcessRunner((command) => commands.push([...command])),
     );
     const github = new FakeGitHub();
     const options = {
@@ -59,7 +65,7 @@ describe("stack sync integration", () => {
     const commands: string[][] = [];
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner((command) => commands.push([...command])),
+      new NodeProcessRunner((command) => commands.push([...command])),
     );
     const github = new FakeGitHub();
     const options = {
@@ -105,7 +111,7 @@ describe("stack sync integration", () => {
     const fixture = createRepository(temporaryDirectory);
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner(),
+      new NodeProcessRunner(),
     );
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
@@ -147,7 +153,7 @@ describe("stack sync integration", () => {
       const reporter = new RecordingReporter();
       const repository = new GitCliRepository(
         fixture.worktree,
-        new NodeCommandRunner(),
+        new NodeProcessRunner(),
       );
       const options = {
         base: "main",
@@ -218,7 +224,7 @@ describe("stack sync integration", () => {
     const reporter = new RecordingReporter();
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner(),
+      new NodeProcessRunner(),
     );
     const options = {
       base: "main",
@@ -259,7 +265,7 @@ describe("stack sync integration", () => {
     const reporter = new RecordingReporter();
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner(),
+      new NodeProcessRunner(),
     );
     const options = {
       base: "main",
@@ -274,7 +280,7 @@ describe("stack sync integration", () => {
     git(
       fixture.worktree,
       "cherry-pick",
-      ...[...submitted.changes].reverse().map((change) => change.oid),
+      ...submitted.changes.toReversed().map((change) => change.oid),
     );
     git(fixture.worktree, "branch", "-f", "feature", "HEAD");
     git(fixture.worktree, "switch", "feature");
@@ -282,13 +288,13 @@ describe("stack sync integration", () => {
     const reordered = sync(repository, github, options);
 
     expect(reordered.changes.map((change) => change.id)).toEqual(
-      [...submitted.changes].reverse().map((change) => change.id),
+      submitted.changes.toReversed().map((change) => change.id),
     );
     expect(
       reordered.changes.map((change) => change.pullRequest?.number),
     ).toEqual(
-      [...submitted.changes]
-        .reverse()
+      submitted.changes
+        .toReversed()
         .map((change) => change.pullRequest?.number),
     );
     expect(github.unstackCalls).toEqual([7]);
@@ -314,7 +320,7 @@ describe("stack sync integration", () => {
     const reporter = new RecordingReporter();
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner(),
+      new NodeProcessRunner(),
     );
     const options = {
       base: "main",
@@ -364,7 +370,7 @@ describe("stack sync integration", () => {
     const reporter = new RecordingReporter();
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner(),
+      new NodeProcessRunner(),
     );
 
     const first = sync(repository, github, {
@@ -432,15 +438,12 @@ describe("stack sync integration", () => {
       reporter.messages.some((message) => message.startsWith("PR #")),
     ).toBe(true);
 
-    checkoutStack(
-      { repository, github, reporter },
-      {
-        reference: String(first.changes[0]!.pullRequest!.number),
-        base: undefined,
-        remote: "origin",
-        sameBase: false,
-      },
-    );
+    new CheckoutCommand(repository, github, reporter).run({
+      reference: String(first.changes[0]!.pullRequest!.number),
+      base: undefined,
+      remote: "origin",
+      sameBase: false,
+    });
     expect(
       gitAllowFailure(fixture.worktree, "symbolic-ref", "--quiet", "HEAD")
         .exitCode,
@@ -672,15 +675,12 @@ function sync(
 ): SyncResult {
   const { reporter, ...syncOptions } = options;
 
-  return syncStack(
-    {
-      repository,
-      github,
-      stateStore: new FileStateStore(repository.statePath()),
-      reporter,
-    },
-    syncOptions,
-  );
+  return new SyncCommand(
+    repository,
+    github,
+    reporter,
+    new FileStateStore(repository.statePath()),
+  ).run(syncOptions);
 }
 
 function createRepository(root: string) {

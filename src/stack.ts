@@ -32,15 +32,22 @@ export type StackTransitionOptions = {
   lookups: StackTransitionLookups;
 };
 
-export interface CommitRewriter {
-  rewriteCommits(rewrites: readonly CommitRewrite[]): string[];
-}
+type TransitionContext = {
+  previous: StoredStack;
+  options: StackTransitionOptions;
+  previousIds: string[];
+  currentIds: string[];
+  previousIdSet: ReadonlySet<string>;
+  removed: StoredStack["changes"];
+  added: readonly StackChange[];
+  baseChanged: boolean;
+};
 
 export class Stack {
   private constructor(
     readonly changes: readonly StackChange[],
     readonly rewritten = false,
-    private readonly rewrites: readonly CommitRewrite[] = [],
+    readonly commitRewrites: readonly CommitRewrite[] = [],
   ) {
     if (changes.length === 0) {
       throw new Error("A stack must contain at least one change");
@@ -55,6 +62,7 @@ export class Stack {
 
       return false;
     });
+
     if (duplicate) {
       throw new Error(
         `A stack cannot contain duplicate bstack-id ${duplicate.id}`,
@@ -68,6 +76,7 @@ export class Stack {
 
   static fromCommits(commits: readonly Commit[], userLogin: string) {
     const ids = commits.map((commit) => commit.changeId ?? generateChangeId());
+
     const rewritten = commits.some((commit) => commit.changeId === undefined);
     const rewrites = rewritten
       ? commits.map((commit, index) => ({
@@ -77,6 +86,7 @@ export class Stack {
             : addChangeId(commit.message, ids[index]!),
         }))
       : [];
+
     const changes = commits.map((commit, index) => {
       const id = ids[index]!;
       const { subject, body } = splitCommitMessage(commit.message);
@@ -93,12 +103,7 @@ export class Stack {
     return new Stack(changes, rewritten, rewrites);
   }
 
-  writeChangeIds(repository: CommitRewriter) {
-    if (!this.rewritten) {
-      return this;
-    }
-
-    const rewrittenOids = repository.rewriteCommits(this.rewrites);
+  withRewrittenOids(rewrittenOids: readonly string[]) {
     if (rewrittenOids.length !== this.changes.length) {
       throw new Error(
         `Git rewrote ${rewrittenOids.length} commits for a stack with ${this.changes.length} changes`,
@@ -130,10 +135,26 @@ export class Stack {
   transitionFrom(
     previous: StoredStack | undefined,
     options: StackTransitionOptions,
-  ) {
+  ): StackTransition {
     if (!previous) {
-      return { kind: "full" } satisfies StackTransition;
+      return { kind: "full" };
     }
+
+    const context = this.transitionContext(previous, options);
+
+    if (context.removed.length === 0) {
+      return this.transitionWithoutRemovedChanges(context);
+    }
+
+    const partial = this.partialTransition(context);
+
+    return partial ?? this.transitionWithRemovedChanges(context);
+  }
+
+  private transitionContext(
+    previous: StoredStack,
+    options: StackTransitionOptions,
+  ): TransitionContext {
     const previousIds = previous.changes.map((change) => change.id);
     const currentIds = this.changes.map((change) => change.id);
     const previousIdSet = new Set(previousIds);
@@ -146,113 +167,126 @@ export class Stack {
     );
     const baseChanged = previous.base !== options.base;
 
-    if (removed.length === 0) {
-      const previousIsPrefix = previousIds.every(
-        (id, index) => currentIds[index] === id,
-      );
-      if (previousIsPrefix && added.length === 0) {
-        return baseChanged
-          ? this.transitionForChangedBase(previous, options)
-          : ({ kind: "skip" } satisfies StackTransition);
-      }
-      if (previousIsPrefix) {
-        if (baseChanged) {
-          return this.transitionForChangedBase(previous, options);
-        }
-        const stackNumber =
-          previous.stackNumber ??
-          options.lookups.stackNumberForPullRequest(
-            previous.changes[0]!.pullRequest,
-          );
-        if (stackNumber !== undefined) {
-          return {
-            kind: "append",
-            stackNumber,
-            branches: added.map((change) => change.remoteBranch),
-          } satisfies StackTransition;
-        }
+    return {
+      previous,
+      options,
+      previousIds,
+      currentIds,
+      previousIdSet,
+      removed,
+      added,
+      baseChanged,
+    };
+  }
 
-        return { kind: "full" } satisfies StackTransition;
-      }
-      const stackNumber =
-        previous.stackNumber ??
-        options.lookups.stackNumberForPullRequest(
-          previous.changes[0]!.pullRequest,
-        );
+  private transitionWithoutRemovedChanges(
+    context: TransitionContext,
+  ): StackTransition {
+    const previousIsPrefix = isPrefix(context.previousIds, context.currentIds);
 
-      return stackNumber === undefined
-        ? ({ kind: "full" } satisfies StackTransition)
-        : ({
-            kind: "rebuild",
-            stackNumber,
-            action: added.length === 0 ? "reorder" : "insert",
-          } satisfies StackTransition);
+    if (!previousIsPrefix) {
+      return this.transitionForChangedOrder(context);
     }
 
-    const firstCurrentIndex = previousIds.indexOf(currentIds[0]!);
-    const isPreviousSlice =
-      firstCurrentIndex >= 0 &&
-      currentIds.every(
-        (id, index) => previousIds[firstCurrentIndex + index] === id,
-      );
-    if (
-      options.preserveHigherChanges &&
-      added.length === 0 &&
-      isPreviousSlice &&
-      firstCurrentIndex + currentIds.length < previousIds.length
-    ) {
-      const removedPrefix = previous.changes.slice(0, firstCurrentIndex);
-      const prefixWasMerged = removedPrefix.every(
-        (change) =>
-          options.lookups.pullRequestState(change.pullRequest) === "MERGED",
-      );
-      if (prefixWasMerged) {
-        if (baseChanged) {
-          throw new Error(
-            "Cannot change the stack base while preserving higher pull requests from a detached checkout",
-          );
-        }
-        return {
-          kind: "partial",
-          previousOffset: firstCurrentIndex,
-        } satisfies StackTransition;
-      }
+    if (context.added.length === 0) {
+      return context.baseChanged
+        ? this.transitionForChangedBase(context.previous, context.options)
+        : { kind: "skip" };
     }
 
-    const removedIsPrefix = removed.every(
-      (change, index) => previous.changes[index] === change,
+    if (context.baseChanged) {
+      return this.transitionForChangedBase(context.previous, context.options);
+    }
+
+    const stackNumber = this.stackNumber(context);
+
+    if (stackNumber === undefined) {
+      return { kind: "full" };
+    }
+
+    return {
+      kind: "append",
+      stackNumber,
+      branches: context.added.map((change) => change.remoteBranch),
+    };
+  }
+
+  private transitionForChangedOrder(
+    context: TransitionContext,
+  ): StackTransition {
+    const stackNumber = this.stackNumber(context);
+
+    if (stackNumber === undefined) {
+      return { kind: "full" };
+    }
+
+    return {
+      kind: "rebuild",
+      stackNumber,
+      action: context.added.length === 0 ? "reorder" : "insert",
+    };
+  }
+
+  private partialTransition(
+    context: TransitionContext,
+  ): StackTransition | undefined {
+    const firstCurrentIndex = context.previousIds.indexOf(
+      context.currentIds[0]!,
     );
-    const removedPrefixWasMerged =
-      removedIsPrefix &&
-      removed.every(
-        (change) =>
-          options.lookups.pullRequestState(change.pullRequest) === "MERGED",
+
+    if (!canPreserveHigherChanges(context, firstCurrentIndex)) {
+      return undefined;
+    }
+
+    const removedPrefix = context.previous.changes.slice(0, firstCurrentIndex);
+
+    if (!allPullRequestsMerged(removedPrefix, context.options.lookups)) {
+      return undefined;
+    }
+
+    if (context.baseChanged) {
+      throw new Error(
+        "Cannot change the stack base while preserving higher pull requests from a detached checkout",
       );
-    const survivingIds = previousIds.slice(removed.length);
+    }
+
+    return {
+      kind: "partial",
+      previousOffset: firstCurrentIndex,
+    };
+  }
+
+  private transitionWithRemovedChanges(
+    context: TransitionContext,
+  ): StackTransition {
+    const removedPrefixWasMerged = isMergedPrefix(context);
+    const survivingIds = context.previousIds.slice(context.removed.length);
     const survivingOrderIsUnchanged = survivingIds.every(
-      (id, index) => currentIds[index] === id,
+      (id, index) => context.currentIds[index] === id,
     );
-    const onlyAppendedAfterMergedPrefix =
-      removedPrefixWasMerged &&
-      survivingOrderIsUnchanged &&
-      currentIds
-        .slice(survivingIds.length)
-        .every((id) => !previousIdSet.has(id));
 
     if (
       removedPrefixWasMerged &&
-      added.length === 0 &&
+      context.added.length === 0 &&
       survivingOrderIsUnchanged
     ) {
-      return baseChanged
-        ? this.transitionForChangedBase(previous, options)
-        : ({ kind: "skip" } satisfies StackTransition);
+      return context.baseChanged
+        ? this.transitionForChangedBase(context.previous, context.options)
+        : { kind: "skip" };
     }
-    if (onlyAppendedAfterMergedPrefix) {
-      if (baseChanged) {
-        return this.transitionForChangedBase(previous, options);
+
+    if (
+      isAppendAfterMergedPrefix(
+        context,
+        survivingIds.length,
+        survivingOrderIsUnchanged,
+        removedPrefixWasMerged,
+      )
+    ) {
+      if (context.baseChanged) {
+        return this.transitionForChangedBase(context.previous, context.options);
       }
-      if (previous.stackNumber === undefined) {
+      if (context.previous.stackNumber === undefined) {
         throw new Error(
           "Cannot append after a merge because the native GitHub stack number is missing from local state",
         );
@@ -260,35 +294,37 @@ export class Stack {
 
       return {
         kind: "append",
-        stackNumber: previous.stackNumber,
-        branches: added.map((change) => change.remoteBranch),
-      } satisfies StackTransition;
+        stackNumber: context.previous.stackNumber,
+        branches: context.added.map((change) => change.remoteBranch),
+      };
     }
 
-    const stackNumber =
-      previous.stackNumber ??
-      options.lookups.stackNumberForPullRequest(
-        previous.changes[0]!.pullRequest,
-      );
+    const stackNumber = this.stackNumber(context);
+
     if (stackNumber === undefined) {
       throw new Error(
         "Cannot remove submitted commits because the native GitHub stack number is missing from local state",
       );
     }
     if (this.changes.length === 1) {
-      return { kind: "collapse", stackNumber } satisfies StackTransition;
+      return { kind: "collapse", stackNumber };
     }
 
     return {
       kind: "rebuild",
       stackNumber,
-      action:
-        added.length === 0 && removedPrefixWasMerged
-          ? "reorder"
-          : added.length === 0
-            ? "remove"
-            : "update",
-    } satisfies StackTransition;
+      action: removalAction(context.added.length, removedPrefixWasMerged),
+    };
+  }
+
+  private stackNumber(context: TransitionContext): number | undefined {
+    if (context.previous.stackNumber !== undefined) {
+      return context.previous.stackNumber;
+    }
+
+    return context.options.lookups.stackNumberForPullRequest(
+      context.previous.changes[0]!.pullRequest,
+    );
   }
 
   private transitionForChangedBase(
@@ -298,6 +334,7 @@ export class Stack {
     if (this.changes.length === 1) {
       return { kind: "retarget" };
     }
+
     const stackNumber =
       previous.stackNumber ??
       options.lookups.stackNumberForPullRequest(
@@ -308,4 +345,77 @@ export class Stack {
       ? { kind: "full" }
       : { kind: "rebuild", stackNumber, action: "change-base" };
   }
+}
+
+function isPrefix(
+  prefix: readonly string[],
+  values: readonly string[],
+): boolean {
+  return prefix.every((id, index) => values[index] === id);
+}
+
+function canPreserveHigherChanges(
+  context: TransitionContext,
+  firstCurrentIndex: number,
+): boolean {
+  const isPreviousSlice =
+    firstCurrentIndex >= 0 &&
+    context.currentIds.every(
+      (id, index) => context.previousIds[firstCurrentIndex + index] === id,
+    );
+  const hasHigherChanges =
+    firstCurrentIndex + context.currentIds.length < context.previousIds.length;
+
+  return (
+    context.options.preserveHigherChanges &&
+    context.added.length === 0 &&
+    isPreviousSlice &&
+    hasHigherChanges
+  );
+}
+
+function allPullRequestsMerged(
+  changes: StoredStack["changes"],
+  lookups: StackTransitionLookups,
+): boolean {
+  return changes.every(
+    (change) => lookups.pullRequestState(change.pullRequest) === "MERGED",
+  );
+}
+
+function isMergedPrefix(context: TransitionContext): boolean {
+  const removedIsPrefix = context.removed.every(
+    (change, index) => context.previous.changes[index] === change,
+  );
+
+  return (
+    removedIsPrefix &&
+    allPullRequestsMerged(context.removed, context.options.lookups)
+  );
+}
+
+function isAppendAfterMergedPrefix(
+  context: TransitionContext,
+  survivingCount: number,
+  survivingOrderIsUnchanged: boolean,
+  removedPrefixWasMerged: boolean,
+): boolean {
+  const appendedIdsAreNew = context.currentIds
+    .slice(survivingCount)
+    .every((id) => !context.previousIdSet.has(id));
+
+  return (
+    removedPrefixWasMerged && survivingOrderIsUnchanged && appendedIdsAreNew
+  );
+}
+
+function removalAction(
+  addedCount: number,
+  removedPrefixWasMerged: boolean,
+): "remove" | "reorder" | "update" {
+  if (addedCount > 0) {
+    return "update";
+  }
+
+  return removedPrefixWasMerged ? "reorder" : "remove";
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+
 import type { Commit } from "./model";
 
 const CHANGE_ID_TRAILER = "bstack-id";

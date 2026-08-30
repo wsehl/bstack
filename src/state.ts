@@ -1,6 +1,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+
 import * as v from "valibot";
+
 import type { RepositoryState, StoredStack } from "./model";
 
 const emptyState = (): RepositoryState => ({ schemaVersion: 1, stacks: [] });

@@ -1,5 +1,7 @@
 import { fromPartial } from "@total-typescript/shoehorn";
 import { describe, expect, test } from "vitest";
+
+import { SyncCommand } from "../src/commands/sync";
 import type { BranchUpdate, CommitRewrite, GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
 import type {
@@ -10,7 +12,6 @@ import type {
 } from "../src/model";
 import type { Reporter } from "../src/reporter";
 import type { StateStore } from "../src/state";
-import { syncStack } from "../src/sync";
 
 describe("stack sync", () => {
   test("rejects duplicate stable IDs before sync can push", () => {
@@ -19,7 +20,7 @@ describe("stack sync", () => {
     const stateStore = new RecordingStateStore(emptyState);
 
     expect(() =>
-      syncStack(dependencies(repository, github, stateStore), {
+      command(repository, github, stateStore).run({
         base: "main",
         remote: "origin",
         draft: false,
@@ -36,7 +37,7 @@ describe("stack sync", () => {
     const github = new SyncGitHub();
     const stateStore = new RecordingStateStore(emptyState);
 
-    const result = syncStack(dependencies(repository, github, stateStore), {
+    const result = command(repository, github, stateStore).run({
       base: "main",
       remote: "origin",
       draft: false,
@@ -73,7 +74,7 @@ describe("stack sync", () => {
       ],
     });
 
-    syncStack(dependencies(repository, github, stateStore), {
+    command(repository, github, stateStore).run({
       base: "release",
       remote: "origin",
       draft: false,
@@ -120,7 +121,7 @@ describe("stack sync", () => {
     github.failNextLinkWith = rebuildError;
 
     expect(() =>
-      syncStack(dependencies(repository, github, stateStore), {
+      command(repository, github, stateStore).run({
         base: "main",
         remote: "origin",
         draft: false,
@@ -166,7 +167,7 @@ describe("stack sync", () => {
     repository.failPushWith = pushError;
 
     expect(() =>
-      syncStack(dependencies(repository, github, stateStore), {
+      command(repository, github, stateStore).run({
         base: "main",
         remote: "origin",
         draft: false,
@@ -382,15 +383,15 @@ class RecordingStateStore implements StateStore {
   }
 }
 
-function dependencies(
+function command(
   repository: SyncRepository,
   github: SyncGitHub,
   stateStore: StateStore,
 ) {
-  return {
-    repository: fromPartial<GitRepository>(repository),
-    github: fromPartial<GitHubPlatform>(github),
+  return new SyncCommand(
+    fromPartial<GitRepository>(repository),
+    fromPartial<GitHubPlatform>(github),
+    silentReporter,
     stateStore,
-    reporter: silentReporter,
-  };
+  );
 }

@@ -1,4 +1,4 @@
-import { formatCommand } from "./command";
+import { formatCommand } from "./process-runner";
 
 export interface Reporter {
   progress(message: string): void;

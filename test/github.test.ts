@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
-import type { CommandOptions, CommandRunner } from "../src/command";
+
 import { GitHubCliPlatform } from "../src/github";
 import type { PullRequest, StackChange } from "../src/model";
+import type { ProcessOptions, ProcessRunner } from "../src/process-runner";
 
 describe("pull request creation and stack linking", () => {
   test("creates pull requests with final metadata before linking by number", () => {
@@ -69,10 +70,10 @@ const pullRequest: PullRequest = {
   isDraft: false,
 };
 
-class RecordingRunner implements CommandRunner {
+class RecordingRunner implements ProcessRunner {
   readonly commands: string[][] = [];
 
-  run(command: readonly string[], _options: CommandOptions) {
+  run(command: readonly string[], _options: ProcessOptions) {
     this.commands.push([...command]);
     const isCreate = command.includes("repos/{owner}/{repo}/pulls");
     const isCurrentUser = command[1] === "api" && command[2] === "user";

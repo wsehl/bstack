@@ -1,12 +1,14 @@
-import { fromPartial } from "@total-typescript/shoehorn";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+import { fromPartial } from "@total-typescript/shoehorn";
 import { describe, expect } from "vitest";
-import { checkoutStack } from "../src/checkout";
-import { NodeCommandRunner } from "../src/command";
+
+import { CheckoutCommand } from "../src/commands/checkout";
 import { GitCliRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
+import { NodeProcessRunner } from "../src/process-runner";
 import type { Reporter } from "../src/reporter";
 import { test } from "./fixtures/temp-dir";
 
@@ -18,24 +20,20 @@ describe("stack checkout integration", () => {
     const reporter = new RecordingReporter();
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner(),
+      new NodeProcessRunner(),
     );
 
-    const result = checkoutStack(
-      {
-        repository,
-        github: fromPartial<GitHubPlatform>(
-          new CheckoutGitHub(fixture.headRef),
-        ),
-        reporter,
-      },
-      {
-        reference: "42",
-        base: undefined,
-        remote: "origin",
-        sameBase: false,
-      },
+    const command = new CheckoutCommand(
+      repository,
+      fromPartial<GitHubPlatform>(new CheckoutGitHub(fixture.headRef)),
+      reporter,
     );
+    const result = command.run({
+      reference: "42",
+      base: undefined,
+      remote: "origin",
+      sameBase: false,
+    });
 
     expect(result).toEqual({
       headRef: fixture.headRef,
@@ -64,25 +62,21 @@ describe("stack checkout integration", () => {
     const fixture = createRepository(temporaryDirectory);
     const repository = new GitCliRepository(
       fixture.worktree,
-      new NodeCommandRunner(),
+      new NodeProcessRunner(),
+    );
+    const command = new CheckoutCommand(
+      repository,
+      fromPartial<GitHubPlatform>(new CheckoutGitHub(fixture.headRef)),
+      new RecordingReporter(),
     );
 
     expect(() =>
-      checkoutStack(
-        {
-          repository,
-          github: fromPartial<GitHubPlatform>(
-            new CheckoutGitHub(fixture.headRef),
-          ),
-          reporter: new RecordingReporter(),
-        },
-        {
-          reference: "42",
-          base: "main",
-          remote: "origin",
-          sameBase: true,
-        },
-      ),
+      command.run({
+        reference: "42",
+        base: "main",
+        remote: "origin",
+        sameBase: true,
+      }),
     ).toThrow(
       `Checkout would change the merge base from ${fixture.mainOid.slice(0, 8)} to ${fixture.baseOid.slice(0, 8)}`,
     );

@@ -1,6 +1,6 @@
-import type { CommandRunner } from "./command";
 import { parseRawCommit, rewriteCommit } from "./commit";
 import type { Commit } from "./model";
+import type { ProcessRunner } from "./process-runner";
 
 export type CommitRewrite = {
   commit: Commit;
@@ -35,7 +35,7 @@ export interface GitRepository {
 export class GitCliRepository implements GitRepository {
   constructor(
     readonly cwd: string,
-    private readonly runner: CommandRunner,
+    private readonly runner: ProcessRunner,
   ) {}
 
   private git(

@@ -1,7 +1,11 @@
 import { describe, expect, test } from "vitest";
+
+import {
+  formatSyncResult,
+  type SyncOutcome,
+  type SyncResult,
+} from "../src/commands/sync";
 import type { PullRequest, StackChange } from "../src/model";
-import { formatSyncResult } from "../src/output";
-import type { SyncOutcome, SyncResult } from "../src/sync";
 
 describe("sync output", () => {
   test("shows every pull request outcome", () => {

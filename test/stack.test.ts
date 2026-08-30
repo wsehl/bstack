@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+
 import type { PullRequest, StackChange, StoredStack } from "../src/model";
 import { Stack, type StackTransitionLookups } from "../src/stack";
 
@@ -101,12 +102,21 @@ describe("stack transition analysis", () => {
     },
   ] as const)(
     "$name",
-    ({ previous, changes, states = {}, base = "main", expected }) => {
-      const transition = Stack.fromChanges(changes).transitionFrom(previous, {
-        base,
-        preserveHigherChanges: false,
-        lookups: lookups(states),
-      });
+    ({
+      previous,
+      changes: localChanges,
+      states = {},
+      base = "main",
+      expected,
+    }) => {
+      const transition = Stack.fromChanges(localChanges).transitionFrom(
+        previous,
+        {
+          base,
+          preserveHigherChanges: false,
+          lookups: lookups(states),
+        },
+      );
 
       expect(transition).toEqual(expected);
     },

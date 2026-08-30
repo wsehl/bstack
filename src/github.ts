@@ -1,6 +1,7 @@
 import * as v from "valibot";
-import type { CommandRunner } from "./command";
+
 import type { PullRequest, StackChange } from "./model";
+import type { ProcessRunner } from "./process-runner";
 
 const pullRequestSchema = v.object({
   number: v.number(),
@@ -57,7 +58,7 @@ export interface GitHubPlatform {
 export class GitHubCliPlatform implements GitHubPlatform {
   constructor(
     private readonly cwd: string,
-    private readonly runner: CommandRunner,
+    private readonly runner: ProcessRunner,
   ) {}
 
   private gh(args: readonly string[]) {

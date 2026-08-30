@@ -1,6 +1,7 @@
 import { fromPartial } from "@total-typescript/shoehorn";
 import { describe, expect, test } from "vitest";
-import { checkoutStack } from "../src/checkout";
+
+import { CheckoutCommand } from "../src/commands/checkout";
 import type { GitRepository } from "../src/git";
 import type { GitHubPlatform } from "../src/github";
 import type { Reporter } from "../src/reporter";
@@ -10,21 +11,19 @@ describe("stack checkout", () => {
     const repository = new FakeCheckoutRepository();
     repository.clean = false;
     const github = new FakeCheckoutGitHub("bstack/user/change-id");
+    const command = new CheckoutCommand(
+      fromPartial<GitRepository>(repository),
+      fromPartial<GitHubPlatform>(github),
+      silentReporter,
+    );
 
     expect(() =>
-      checkoutStack(
-        {
-          repository: fromPartial<GitRepository>(repository),
-          github: fromPartial<GitHubPlatform>(github),
-          reporter: silentReporter,
-        },
-        {
-          reference: "42",
-          base: undefined,
-          remote: undefined,
-          sameBase: false,
-        },
-      ),
+      command.run({
+        reference: "42",
+        base: undefined,
+        remote: undefined,
+        sameBase: false,
+      }),
     ).toThrow("The working tree must be clean before checkout");
     expect(repository.fetchedBranches).toEqual([]);
     expect(repository.checkedOutRefs).toEqual([]);
@@ -35,19 +34,17 @@ describe("stack checkout", () => {
     const repository = new FakeCheckoutRepository();
     const github = new FakeCheckoutGitHub("feature/ordinary");
 
-    const result = checkoutStack(
-      {
-        repository: fromPartial<GitRepository>(repository),
-        github: fromPartial<GitHubPlatform>(github),
-        reporter: silentReporter,
-      },
-      {
-        reference: "42",
-        base: undefined,
-        remote: undefined,
-        sameBase: false,
-      },
+    const command = new CheckoutCommand(
+      fromPartial<GitRepository>(repository),
+      fromPartial<GitHubPlatform>(github),
+      silentReporter,
     );
+    const result = command.run({
+      reference: "42",
+      base: undefined,
+      remote: undefined,
+      sameBase: false,
+    });
 
     expect(result).toEqual({
       headRef: "feature/ordinary",
@@ -65,21 +62,19 @@ describe("stack checkout", () => {
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     ];
     const github = new FakeCheckoutGitHub("bstack/user/change-id");
+    const command = new CheckoutCommand(
+      fromPartial<GitRepository>(repository),
+      fromPartial<GitHubPlatform>(github),
+      silentReporter,
+    );
 
     expect(() =>
-      checkoutStack(
-        {
-          repository: fromPartial<GitRepository>(repository),
-          github: fromPartial<GitHubPlatform>(github),
-          reporter: silentReporter,
-        },
-        {
-          reference: "42",
-          base: "main",
-          remote: "origin",
-          sameBase: true,
-        },
-      ),
+      command.run({
+        reference: "42",
+        base: "main",
+        remote: "origin",
+        sameBase: true,
+      }),
     ).toThrow("Checkout would change the merge base from aaaaaaaa to bbbbbbbb");
     expect(repository.fetchedBranches).toEqual([
       { remote: "origin", branch: "bstack/user/change-id" },
