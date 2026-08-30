@@ -1,7 +1,24 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [".agents/**"],
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import"],
+  "categories": {
+    "correctness": "error",
+    "perf": "error"
+  },
   "rules": {
     "import/first": "error",
-    "curly": "error"
+    "curly": "error",
+    "complexity": ["error", { "max": 10, "variant": "classic" }],
+    "max-statements": ["error", { "max": 50 }],
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_"
+      }
+    ]
   }
 }
