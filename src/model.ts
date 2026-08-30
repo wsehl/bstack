@@ -38,6 +38,11 @@ export type StoredStack = {
   changes: StoredChange[];
 };
 
+export type StoredStackEntry = {
+  index: number;
+  stack: StoredStack;
+};
+
 export type RepositoryState = {
   schemaVersion: 1;
   stacks: StoredStack[];

@@ -8,8 +8,7 @@ import type {
   StoredStack,
 } from "./model";
 
-export type StackTransition =
-  | { kind: "full" }
+type ExistingStackTransition =
   | {
       kind: "rebuild";
       stackNumber: number;
@@ -20,6 +19,12 @@ export type StackTransition =
   | { kind: "skip" }
   | { kind: "partial"; previousOffset: number }
   | { kind: "append"; stackNumber: number; branches: string[] };
+
+type StackTransitionDecision = { kind: "full" } | ExistingStackTransition;
+
+export type StackTransition =
+  | { kind: "full"; previous?: StoredStack }
+  | (ExistingStackTransition & { previous: StoredStack });
 
 export type StackTransitionLookups = {
   pullRequestState(pullRequest: number): PullRequest["state"];
@@ -119,8 +124,10 @@ export class Stack {
 
   findPrevious(state: RepositoryState) {
     const ids = new Set(this.changes.map((change) => change.id));
-    const matches = state.stacks.filter((stack) =>
-      stack.changes.some((change) => ids.has(change.id)),
+    const matches = state.stacks.flatMap((stack, index) =>
+      stack.changes.some((change) => ids.has(change.id))
+        ? [{ index, stack }]
+        : [],
     );
 
     if (matches.length > 1) {
@@ -141,14 +148,27 @@ export class Stack {
     }
 
     const context = this.transitionContext(previous, options);
+    let decision: StackTransitionDecision;
 
     if (context.removed.length === 0) {
-      return this.transitionWithoutRemovedChanges(context);
+      decision = this.transitionWithoutRemovedChanges(context);
+    } else {
+      const partial = this.partialTransition(context);
+
+      decision = partial ?? this.transitionWithRemovedChanges(context);
     }
 
-    const partial = this.partialTransition(context);
+    if (decision.kind === "full") {
+      return {
+        ...decision,
+        previous,
+      };
+    }
 
-    return partial ?? this.transitionWithRemovedChanges(context);
+    return {
+      ...decision,
+      previous,
+    };
   }
 
   private transitionContext(
@@ -181,7 +201,7 @@ export class Stack {
 
   private transitionWithoutRemovedChanges(
     context: TransitionContext,
-  ): StackTransition {
+  ): StackTransitionDecision {
     const previousIsPrefix = isPrefix(context.previousIds, context.currentIds);
 
     if (!previousIsPrefix) {
@@ -213,7 +233,7 @@ export class Stack {
 
   private transitionForChangedOrder(
     context: TransitionContext,
-  ): StackTransition {
+  ): StackTransitionDecision {
     const stackNumber = this.stackNumber(context);
 
     if (stackNumber === undefined) {
@@ -229,7 +249,7 @@ export class Stack {
 
   private partialTransition(
     context: TransitionContext,
-  ): StackTransition | undefined {
+  ): ExistingStackTransition | undefined {
     const firstCurrentIndex = context.previousIds.indexOf(
       context.currentIds[0]!,
     );
@@ -258,7 +278,7 @@ export class Stack {
 
   private transitionWithRemovedChanges(
     context: TransitionContext,
-  ): StackTransition {
+  ): StackTransitionDecision {
     const removedPrefixWasMerged = isMergedPrefix(context);
     const survivingIds = context.previousIds.slice(context.removed.length);
     const survivingOrderIsUnchanged = survivingIds.every(
@@ -330,7 +350,7 @@ export class Stack {
   private transitionForChangedBase(
     previous: StoredStack,
     options: StackTransitionOptions,
-  ): StackTransition {
+  ): StackTransitionDecision {
     if (this.changes.length === 1) {
       return { kind: "retarget" };
     }

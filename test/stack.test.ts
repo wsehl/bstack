@@ -118,13 +118,15 @@ describe("stack transition analysis", () => {
         },
       );
 
-      expect(transition).toEqual(expected);
+      expect(transition).toMatchObject(expected);
+      expect(transition.previous).toBe(previous);
     },
   );
 
   test("preserves higher changes when syncing a detached down-stack prefix", () => {
+    const previous = stack("a", "b", "c");
     const transition = Stack.fromChanges(changes("b")).transitionFrom(
-      stack("a", "b", "c"),
+      previous,
       {
         base: "main",
         preserveHigherChanges: true,
@@ -132,12 +134,14 @@ describe("stack transition analysis", () => {
       },
     );
 
-    expect(transition).toEqual({ kind: "partial", previousOffset: 1 });
+    expect(transition).toMatchObject({ kind: "partial", previousOffset: 1 });
+    expect(transition.previous).toBe(previous);
   });
 
   test("uses a discovered stack number when local state lacks one", () => {
+    const previous = stackWithoutNumber("a", "b");
     const transition = Stack.fromChanges(changes("x", "a", "b")).transitionFrom(
-      stackWithoutNumber("a", "b"),
+      previous,
       {
         base: "main",
         preserveHigherChanges: false,
@@ -145,11 +149,12 @@ describe("stack transition analysis", () => {
       },
     );
 
-    expect(transition).toEqual({
+    expect(transition).toMatchObject({
       kind: "rebuild",
       stackNumber: 11,
       action: "insert",
     });
+    expect(transition.previous).toBe(previous);
   });
 
   test("rejects appending after a merge when local state lacks a stack number", () => {
@@ -163,6 +168,21 @@ describe("stack transition analysis", () => {
         },
       ),
     ).toThrow("Cannot append after a merge");
+  });
+
+  test("finds previous state by its stored index", () => {
+    const unrelated = stack("x");
+    const previous = stack("a", "b");
+
+    const found = Stack.fromChanges(changes("b")).findPrevious({
+      schemaVersion: 1,
+      stacks: [unrelated, previous],
+    });
+
+    expect(found).toEqual({
+      index: 1,
+      stack: previous,
+    });
   });
 });
 

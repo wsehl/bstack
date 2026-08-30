@@ -5,6 +5,7 @@ import type {
   RepositoryState,
   StackChange,
   StoredChange,
+  StoredStackEntry,
   StoredStack,
 } from "../model";
 import type { Reporter } from "../reporter";
@@ -43,18 +44,17 @@ type PreparedStack = {
   stack: Stack;
 };
 
-type PullRequestMatch = {
-  pullRequests: PullRequest[];
-  createdBranches: ReadonlySet<string>;
+type MatchedChange = {
+  change: StackChange;
+  pullRequest: PullRequest;
+  created: boolean;
 };
 
 type SynchronizedChange = StackChange & { pullRequest: PullRequest };
 
 type OutcomeContext = {
   previous: StoredStack | undefined;
-  changes: readonly StackChange[];
   base: string;
-  createdBranches: ReadonlySet<string>;
   pushedBranches: ReadonlySet<string>;
 };
 
@@ -153,8 +153,8 @@ export class SyncCommand {
     this.reporter.progress("Reading the previous stack state");
 
     const state = this.stateStore.read();
-    const previous = stack.findPrevious(state);
-    const transition = stack.transitionFrom(previous, {
+    const previousEntry = stack.findPrevious(state);
+    const transition = stack.transitionFrom(previousEntry?.stack, {
       base,
       preserveHigherChanges: this.repository.currentBranch() === undefined,
       lookups: {
@@ -165,24 +165,13 @@ export class SyncCommand {
       },
     });
 
-    this.prepareTransition(transition, previous, base);
-    const pushedBranches = this.pushBranches(
-      remote,
-      changes,
-      transition,
-      previous,
-    );
-    const { pullRequests, createdBranches } = this.matchPullRequests(
-      changes,
-      base,
-      options.draft,
-    );
+    this.prepareTransition(transition, base);
+    const pushedBranches = this.pushBranches(remote, changes, transition);
+    const matchedChanges = this.matchPullRequests(changes, base, options.draft);
 
     this.applyTransition(
       transition,
-      previous,
-      changes,
-      pullRequests,
+      matchedChanges,
       base,
       remote,
       options.draft,
@@ -190,26 +179,22 @@ export class SyncCommand {
 
     const omittedPullRequests = this.closeOmittedPullRequests(
       transition,
-      previous,
       changes,
     );
-    this.updatePullRequestMetadata(changes, pullRequests);
+    this.updatePullRequestMetadata(matchedChanges);
     this.saveStack(
       state,
-      previous,
+      previousEntry,
       transition,
-      changes,
-      pullRequests,
+      matchedChanges,
       base,
       remote,
     );
 
-    const synchronized = synchronizeChanges(changes, pullRequests);
-    const outcomes = buildOutcomes(synchronized, omittedPullRequests, {
-      previous,
-      changes,
+    const synchronized = synchronizeChanges(matchedChanges);
+    const outcomes = buildOutcomes(matchedChanges, omittedPullRequests, {
+      previous: transition.previous,
       base,
-      createdBranches,
       pushedBranches,
     });
 
@@ -226,7 +211,6 @@ export class SyncCommand {
     remote: string,
     changes: readonly StackChange[],
     transition: StackTransition,
-    previous: StoredStack | undefined,
   ): ReadonlySet<string> {
     try {
       const pushResult = this.repository.pushBranches(
@@ -241,7 +225,7 @@ export class SyncCommand {
       return new Set(pushResult.updated);
     } catch (error) {
       if (isReorder(transition)) {
-        this.restorePreviousStack(previous!, error);
+        this.restorePreviousStack(transition.previous, error);
       }
 
       throw error;
@@ -252,46 +236,42 @@ export class SyncCommand {
     changes: readonly StackChange[],
     base: string,
     draft: boolean,
-  ): PullRequestMatch {
+  ): MatchedChange[] {
     this.reporter.progress("Looking up existing pull requests");
 
-    const existing = changes.map((change) =>
-      this.github.pullRequestForBranch(change.remoteBranch),
-    );
+    const candidates = changes.map((change) => ({
+      change,
+      current: this.github.pullRequestForBranch(change.remoteBranch),
+    }));
+    const matchedChanges: MatchedChange[] = [];
 
-    const pullRequests = changes.map((change, index) => {
-      const current = existing[index];
+    for (const { change, current } of candidates) {
+      const pullRequestBase =
+        matchedChanges.at(-1)?.change.remoteBranch ?? base;
 
-      if (current) {
-        return current;
+      if (!current) {
+        this.reporter.progress(`Creating pull request: ${change.subject}`);
       }
 
-      const pullRequestBase = pullRequestBaseFor(changes, index, base);
-      this.reporter.progress(`Creating pull request: ${change.subject}`);
+      const pullRequest =
+        current ??
+        this.github.createPullRequest(change, pullRequestBase, draft);
 
-      return this.github.createPullRequest(change, pullRequestBase, draft);
-    });
+      matchedChanges.push({
+        change,
+        pullRequest,
+        created: current === undefined,
+      });
+    }
 
-    const createdBranches = changes
-      .filter((_change, index) => existing[index] === undefined)
-      .map((change) => change.remoteBranch);
-
-    return {
-      pullRequests,
-      createdBranches: new Set(createdBranches),
-    };
+    return matchedChanges;
   }
 
   private closeOmittedPullRequests(
     transition: StackTransition,
-    previous: StoredStack | undefined,
     changes: readonly StackChange[],
   ): PullRequest[] {
-    const omittedPullRequests = this.omittedPullRequests(
-      transition,
-      previous,
-      changes,
-    );
+    const omittedPullRequests = this.omittedPullRequests(transition, changes);
 
     if (omittedPullRequests.length === 0) {
       return omittedPullRequests;
@@ -310,7 +290,6 @@ export class SyncCommand {
 
   private omittedPullRequests(
     transition: StackTransition,
-    previous: StoredStack | undefined,
     changes: readonly StackChange[],
   ): PullRequest[] {
     if (transition.kind === "partial") {
@@ -319,22 +298,18 @@ export class SyncCommand {
 
     const currentIds = new Set(changes.map((change) => change.id));
 
-    return (previous?.changes ?? [])
+    return (transition.previous?.changes ?? [])
       .filter((change) => !currentIds.has(change.id))
       .map((change) => this.github.pullRequest(change.pullRequest))
       .filter((pullRequest) => pullRequest.state === "OPEN");
   }
 
-  private updatePullRequestMetadata(
-    changes: readonly StackChange[],
-    pullRequests: readonly PullRequest[],
-  ) {
+  private updatePullRequestMetadata(matchedChanges: readonly MatchedChange[]) {
     this.reporter.progress(
       "Synchronizing pull request titles and descriptions",
     );
 
-    for (const [index, pullRequest] of pullRequests.entries()) {
-      const change = changes[index]!;
+    for (const { change, pullRequest } of matchedChanges) {
       this.github.editPullRequest(pullRequest, change);
       this.reporter.progress(`PR #${pullRequest.number}: ${change.subject}`);
     }
@@ -342,73 +317,63 @@ export class SyncCommand {
 
   private saveStack(
     state: RepositoryState,
-    previous: StoredStack | undefined,
+    previousEntry: StoredStackEntry | undefined,
     transition: StackTransition,
-    changes: readonly StackChange[],
-    pullRequests: readonly PullRequest[],
+    matchedChanges: readonly MatchedChange[],
     base: string,
     remote: string,
   ) {
-    const synchronizedChanges = changes.map((change, index) => ({
-      id: change.id,
-      remoteBranch: change.remoteBranch,
-      pullRequest: pullRequests[index]!.number,
-      url: pullRequests[index]!.url,
-    }));
-    const storedChanges = changesForState(
-      synchronizedChanges,
-      transition,
-      previous,
+    const synchronizedChanges = matchedChanges.map(
+      ({ change, pullRequest }) => ({
+        id: change.id,
+        remoteBranch: change.remoteBranch,
+        pullRequest: pullRequest.number,
+        url: pullRequest.url,
+      }),
     );
+    const storedChanges = changesForState(synchronizedChanges, transition);
     const updatedStack: StoredStack = {
       remote,
       base,
       changes: storedChanges,
     };
-    const stackNumber = this.updatedStackNumber(
-      transition,
-      previous,
-      pullRequests,
-    );
+    const stackNumber = this.updatedStackNumber(transition, matchedChanges);
 
     if (stackNumber !== undefined) {
       updatedStack.stackNumber = stackNumber;
     }
 
-    writeUpdatedState(this.stateStore, state, previous, updatedStack);
+    writeUpdatedState(this.stateStore, state, previousEntry, updatedStack);
 
     this.reporter.progress("Saved the local stack state");
   }
 
   private updatedStackNumber(
     transition: StackTransition,
-    previous: StoredStack | undefined,
-    pullRequests: readonly PullRequest[],
+    matchedChanges: readonly MatchedChange[],
   ): number | undefined {
+    const firstPullRequest = firstMatchedChange(matchedChanges).pullRequest;
+
     if (transition.kind === "rebuild") {
-      return this.github.stackNumberForPullRequest(pullRequests[0]!.number);
+      return this.github.stackNumberForPullRequest(firstPullRequest.number);
     }
 
     if (transition.kind === "collapse") {
       return undefined;
     }
 
-    if (previous?.stackNumber !== undefined) {
-      return previous.stackNumber;
+    if (transition.previous?.stackNumber !== undefined) {
+      return transition.previous.stackNumber;
     }
 
-    if (pullRequests.length > 1) {
-      return this.github.stackNumberForPullRequest(pullRequests[0]!.number);
+    if (matchedChanges.length > 1) {
+      return this.github.stackNumberForPullRequest(firstPullRequest.number);
     }
 
     return undefined;
   }
 
-  private prepareTransition(
-    transition: StackTransition,
-    previous: StoredStack | undefined,
-    base: string,
-  ) {
+  private prepareTransition(transition: StackTransition, base: string) {
     if (transition.kind !== "rebuild" || transition.action !== "reorder") {
       return;
     }
@@ -419,7 +384,7 @@ export class SyncCommand {
     this.github.unstack(transition.stackNumber);
 
     try {
-      for (const change of previous!.changes) {
+      for (const change of transition.previous.changes) {
         const pullRequest = this.github.pullRequest(change.pullRequest);
 
         if (pullRequest.state === "OPEN") {
@@ -427,31 +392,30 @@ export class SyncCommand {
         }
       }
     } catch (error) {
-      this.restorePreviousStack(previous!, error);
+      this.restorePreviousStack(transition.previous, error);
     }
   }
 
   private applyTransition(
     transition: StackTransition,
-    previous: StoredStack | undefined,
-    changes: readonly StackChange[],
-    pullRequests: readonly PullRequest[],
+    matchedChanges: readonly MatchedChange[],
     base: string,
     remote: string,
     draft: boolean,
   ) {
+    const firstMatch = firstMatchedChange(matchedChanges);
+
     if (transition.kind === "retarget") {
       this.reporter.progress(`Updating the pull request base to ${base}`);
-      this.github.editPullRequestBase(pullRequests[0]!, base);
+      this.github.editPullRequestBase(firstMatch.pullRequest, base);
 
       return;
     }
 
-    if (changes.length === 1) {
+    if (matchedChanges.length === 1) {
       this.applySingleChangeTransition(
         transition,
-        previous,
-        pullRequests[0]!,
+        firstMatch.pullRequest,
         base,
       );
 
@@ -460,20 +424,13 @@ export class SyncCommand {
 
     switch (transition.kind) {
       case "full":
-        this.linkFullStack(changes.length, pullRequests, base, remote, draft);
+        this.linkFullStack(matchedChanges, base, remote, draft);
         break;
       case "rebuild":
-        this.rebuildStack(
-          transition,
-          previous!,
-          pullRequests,
-          base,
-          remote,
-          draft,
-        );
+        this.rebuildStack(transition, matchedChanges, base, remote, draft);
         break;
       case "append":
-        this.appendToStack(transition, changes, pullRequests, remote, draft);
+        this.appendToStack(transition, matchedChanges, remote, draft);
         break;
       case "partial":
         this.reportPartialUpdate();
@@ -487,7 +444,6 @@ export class SyncCommand {
 
   private applySingleChangeTransition(
     transition: StackTransition,
-    previous: StoredStack | undefined,
     pullRequest: PullRequest,
     base: string,
   ) {
@@ -509,23 +465,22 @@ export class SyncCommand {
     try {
       this.github.editPullRequestBase(pullRequest, base);
     } catch (error) {
-      this.restorePreviousStack(previous!, error);
+      this.restorePreviousStack(transition.previous, error);
     }
   }
 
   private linkFullStack(
-    changeCount: number,
-    pullRequests: readonly PullRequest[],
+    matchedChanges: readonly MatchedChange[],
     base: string,
     remote: string,
     draft: boolean,
   ) {
     this.reporter.progress(
-      `Linking ${changeCount} pull requests as a native GitHub stack`,
+      `Linking ${matchedChanges.length} pull requests as a native GitHub stack`,
     );
 
     this.github.linkStack(
-      pullRequests.map((pullRequest) => pullRequest.number),
+      matchedChanges.map(({ pullRequest }) => pullRequest.number),
       base,
       remote,
       draft,
@@ -534,8 +489,7 @@ export class SyncCommand {
 
   private rebuildStack(
     transition: Extract<StackTransition, { kind: "rebuild" }>,
-    previous: StoredStack,
-    pullRequests: readonly PullRequest[],
+    matchedChanges: readonly MatchedChange[],
     base: string,
     remote: string,
     draft: boolean,
@@ -555,20 +509,19 @@ export class SyncCommand {
 
     try {
       this.github.linkStack(
-        pullRequests.map((pullRequest) => pullRequest.number),
+        matchedChanges.map(({ pullRequest }) => pullRequest.number),
         base,
         remote,
         draft,
       );
     } catch (error) {
-      this.restorePreviousStack(previous, error);
+      this.restorePreviousStack(transition.previous, error);
     }
   }
 
   private appendToStack(
     transition: Extract<StackTransition, { kind: "append" }>,
-    changes: readonly StackChange[],
-    pullRequests: readonly PullRequest[],
+    matchedChanges: readonly MatchedChange[],
     remote: string,
     draft: boolean,
   ) {
@@ -579,7 +532,7 @@ export class SyncCommand {
     this.github.appendToStack(
       transition.stackNumber,
       transition.branches.map((branch) =>
-        pullRequestNumberForBranch(branch, changes, pullRequests),
+        pullRequestNumberForBranch(branch, matchedChanges),
       ),
       remote,
       draft,
@@ -604,9 +557,10 @@ export class SyncCommand {
       const pullRequests = previous.changes
         .map((change) => this.github.pullRequest(change.pullRequest))
         .filter((pullRequest) => pullRequest.state === "OPEN");
+      const firstPullRequest = pullRequests[0];
 
-      if (pullRequests.length === 1) {
-        this.github.editPullRequestBase(pullRequests[0]!, previous.base);
+      if (pullRequests.length === 1 && firstPullRequest) {
+        this.github.editPullRequestBase(firstPullRequest, previous.base);
       } else if (pullRequests.length > 1) {
         this.github.linkStack(
           pullRequests.map((pullRequest) => pullRequest.number),
@@ -631,47 +585,39 @@ export class SyncCommand {
   }
 }
 
-function isReorder(transition: StackTransition): boolean {
+function isReorder(transition: StackTransition): transition is Extract<
+  StackTransition,
+  { kind: "rebuild" }
+> & {
+  action: "reorder";
+} {
   return transition.kind === "rebuild" && transition.action === "reorder";
-}
-
-function pullRequestBaseFor(
-  changes: readonly StackChange[],
-  index: number,
-  base: string,
-): string {
-  if (index === 0) {
-    return base;
-  }
-
-  return changes[index - 1]!.remoteBranch;
 }
 
 function pullRequestNumberForBranch(
   branch: string,
-  changes: readonly StackChange[],
-  pullRequests: readonly PullRequest[],
+  matchedChanges: readonly MatchedChange[],
 ): number {
-  const index = changes.findIndex((change) => change.remoteBranch === branch);
-  const pullRequest = pullRequests[index];
+  const match = matchedChanges.find(
+    ({ change }) => change.remoteBranch === branch,
+  );
 
-  if (!pullRequest) {
+  if (!match) {
     throw new Error(`Missing pull request for ${branch}`);
   }
 
-  return pullRequest.number;
+  return match.pullRequest.number;
 }
 
 function changesForState(
   synchronized: StoredChange[],
   transition: StackTransition,
-  previous: StoredStack | undefined,
 ): StoredChange[] {
-  if (transition.kind !== "partial" || !previous) {
+  if (transition.kind !== "partial") {
     return synchronized;
   }
 
-  const preserved = previous.changes.slice(
+  const preserved = transition.previous.changes.slice(
     transition.previousOffset + synchronized.length,
   );
 
@@ -679,25 +625,36 @@ function changesForState(
 }
 
 function synchronizeChanges(
-  changes: readonly StackChange[],
-  pullRequests: readonly PullRequest[],
+  matchedChanges: readonly MatchedChange[],
 ): SynchronizedChange[] {
-  return changes.map((change, index) => ({
+  return matchedChanges.map(({ change, pullRequest }) => ({
     ...change,
-    pullRequest: pullRequests[index]!,
+    pullRequest,
   }));
 }
 
+function firstMatchedChange(
+  matchedChanges: readonly MatchedChange[],
+): MatchedChange {
+  const first = matchedChanges[0];
+
+  if (!first) {
+    throw new Error("A synchronized stack must contain at least one change");
+  }
+
+  return first;
+}
+
 function buildOutcomes(
-  synchronized: readonly SynchronizedChange[],
+  matchedChanges: readonly MatchedChange[],
   omittedPullRequests: readonly PullRequest[],
   context: OutcomeContext,
 ): SyncOutcome[] {
-  const synchronizedOutcomes = synchronized.map(
-    (change, index): SyncOutcome => ({
-      outcome: changeOutcome(change, index, change.pullRequest, context),
-      change,
-      pullRequest: change.pullRequest,
+  const synchronizedOutcomes = matchedChanges.map(
+    (match, index): SyncOutcome => ({
+      outcome: changeOutcome(match, index, matchedChanges, context),
+      change: match.change,
+      pullRequest: match.pullRequest,
     }),
   );
   const closedOutcomes = omittedPullRequests.map(
@@ -711,17 +668,19 @@ function buildOutcomes(
 }
 
 function changeOutcome(
-  change: StackChange,
+  match: MatchedChange,
   index: number,
-  pullRequest: PullRequest,
+  matchedChanges: readonly MatchedChange[],
   context: OutcomeContext,
 ): "created" | "updated" | "unchanged" {
-  if (context.createdBranches.has(change.remoteBranch)) {
+  if (match.created) {
     return "created";
   }
 
+  const { change, pullRequest } = match;
   const previousBase = previousBaseFor(change, context.previous);
-  const currentBase = pullRequestBaseFor(context.changes, index, context.base);
+  const currentBase =
+    matchedChanges[index - 1]?.change.remoteBranch ?? context.base;
   const metadataChanged =
     pullRequest.title !== change.subject || pullRequest.body !== change.body;
   const updated =
@@ -772,13 +731,21 @@ function reportPushResult(reporter: Reporter, result: PushResult) {
 function writeUpdatedState(
   store: StateStore,
   state: RepositoryState,
-  previous: StoredStack | undefined,
+  previous: StoredStackEntry | undefined,
   updated: StoredStack,
 ) {
-  const stacks = previous
-    ? state.stacks.map((stack) => (stack === previous ? updated : stack))
-    : [...state.stacks, updated];
-  store.write({ schemaVersion: 1, stacks });
+  const stacks = [...state.stacks];
+
+  if (previous) {
+    stacks[previous.index] = updated;
+  } else {
+    stacks.push(updated);
+  }
+
+  store.write({
+    schemaVersion: 1,
+    stacks,
+  });
 }
 
 export function formatSyncResult(result: SyncResult, dryRun: boolean): string {

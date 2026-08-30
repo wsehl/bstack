@@ -190,6 +190,56 @@ describe("stack sync", () => {
     ]);
     expect(stateStore.writes).toEqual([]);
   });
+
+  test("updates the matched stack by index without replacing another stack", () => {
+    const repository = new SyncRepository([commit("one")]);
+    const github = new SyncGitHub();
+    const unrelated = {
+      remote: "origin",
+      base: "main",
+      changes: [
+        {
+          id: "unrelated",
+          remoteBranch: "bstack/test-user/unrelated",
+          pullRequest: 20,
+          url: "https://example.test/pull/20",
+        },
+      ],
+    };
+    const stateStore = new RecordingStateStore({
+      schemaVersion: 1,
+      stacks: [
+        unrelated,
+        {
+          remote: "origin",
+          base: "main",
+          changes: [
+            {
+              id: "one",
+              remoteBranch: "bstack/test-user/one",
+              pullRequest: 1,
+              url: "https://example.test/pull/1",
+            },
+          ],
+        },
+      ],
+    });
+
+    command(repository, github, stateStore).run({
+      base: "release",
+      remote: "origin",
+      draft: false,
+      dryRun: false,
+    });
+
+    expect(stateStore.writes.at(-1)?.stacks).toEqual([
+      unrelated,
+      expect.objectContaining({
+        base: "release",
+        changes: [expect.objectContaining({ id: "one" })],
+      }),
+    ]);
+  });
 });
 
 const emptyState: RepositoryState = {
