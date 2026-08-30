@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.2](https://github.com/wsehl/bstack/compare/v1.5.1...v1.5.2) (2026-08-30)
+
+
+### Miscellaneous Chores
+
+* update oxc configs ([4b10ced](https://github.com/wsehl/bstack/commit/4b10ced8a0df5f1dc39eef898f3ae38dbc9745e9))
+
+
+### Code Refactoring
+
+* **cli:** organize commands and format everything ([944e427](https://github.com/wsehl/bstack/commit/944e42749cab0c38cc3c9cad85574023dd0c3be9))
+
 ## [1.5.1](https://github.com/wsehl/bstack/compare/v1.5.0...v1.5.1) (2026-08-25)
 
 
