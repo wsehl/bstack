@@ -328,7 +328,7 @@ export class SyncCommand {
   private updatePullRequestMetadata(
     changes: readonly StackChange[],
     pullRequests: readonly PullRequest[],
-  ): void {
+  ) {
     this.reporter.progress(
       "Synchronizing pull request titles and descriptions",
     );
@@ -348,7 +348,7 @@ export class SyncCommand {
     pullRequests: readonly PullRequest[],
     base: string,
     remote: string,
-  ): void {
+  ) {
     const synchronizedChanges = changes.map((change, index) => ({
       id: change.id,
       remoteBranch: change.remoteBranch,
@@ -408,7 +408,7 @@ export class SyncCommand {
     transition: StackTransition,
     previous: StoredStack | undefined,
     base: string,
-  ): void {
+  ) {
     if (transition.kind !== "rebuild" || transition.action !== "reorder") {
       return;
     }
@@ -439,7 +439,7 @@ export class SyncCommand {
     base: string,
     remote: string,
     draft: boolean,
-  ): void {
+  ) {
     if (transition.kind === "retarget") {
       this.reporter.progress(`Updating the pull request base to ${base}`);
       this.github.editPullRequestBase(pullRequests[0]!, base);
@@ -490,7 +490,7 @@ export class SyncCommand {
     previous: StoredStack | undefined,
     pullRequest: PullRequest,
     base: string,
-  ): void {
+  ) {
     if (transition.kind === "partial") {
       this.reportPartialUpdate();
 
@@ -519,7 +519,7 @@ export class SyncCommand {
     base: string,
     remote: string,
     draft: boolean,
-  ): void {
+  ) {
     this.reporter.progress(
       `Linking ${changeCount} pull requests as a native GitHub stack`,
     );
@@ -539,7 +539,7 @@ export class SyncCommand {
     base: string,
     remote: string,
     draft: boolean,
-  ): void {
+  ) {
     const reason =
       transition.action === "change-base"
         ? `against ${base}`
@@ -571,7 +571,7 @@ export class SyncCommand {
     pullRequests: readonly PullRequest[],
     remote: string,
     draft: boolean,
-  ): void {
+  ) {
     this.reporter.progress(
       `Appending ${transition.branches.length} pull request${transition.branches.length === 1 ? "" : "s"} to stack #${transition.stackNumber}`,
     );
@@ -586,7 +586,7 @@ export class SyncCommand {
     );
   }
 
-  private reportPartialUpdate(): void {
+  private reportPartialUpdate() {
     this.reporter.progress(
       "Updating this down-stack prefix while preserving higher pull requests",
     );
@@ -755,7 +755,7 @@ function previousBaseFor(
   return previous.changes[previousIndex - 1]!.remoteBranch;
 }
 
-function reportPushResult(reporter: Reporter, result: PushResult): void {
+function reportPushResult(reporter: Reporter, result: PushResult) {
   if (result.updated.length === 0) {
     reporter.progress(
       `All ${result.checked} remote branch${result.checked === 1 ? "" : "es"} already match`,
@@ -774,7 +774,7 @@ function writeUpdatedState(
   state: RepositoryState,
   previous: StoredStack | undefined,
   updated: StoredStack,
-): void {
+) {
   const stacks = previous
     ? state.stacks.map((stack) => (stack === previous ? updated : stack))
     : [...state.stacks, updated];
