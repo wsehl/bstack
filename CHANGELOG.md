@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/wsehl/bstack/compare/v1.6.0...v1.6.1) (2026-09-08)
+
+
+### Miscellaneous Chores
+
+* format a bit better ([e2b1232](https://github.com/wsehl/bstack/commit/e2b12327e7049fa471c660bc237a25cd029ad9f4))
+
 ## [1.6.0](https://github.com/wsehl/bstack/compare/v1.5.3...v1.6.0) (2026-09-08)
 
 
