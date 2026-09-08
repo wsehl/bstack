@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.3](https://github.com/wsehl/bstack/compare/v1.5.2...v1.5.3) (2026-09-08)
+
+
+### Code Refactoring
+
+* **cli:** separate parsing and command-specific help ([6bb0aa5](https://github.com/wsehl/bstack/commit/6bb0aa565d2749d403143719f986752182fabcbe))
+* **sync:** encode reconciliation invariants ([982896a](https://github.com/wsehl/bstack/commit/982896a40a59c2ea00bce6b9e39b274ce2a10f4e))
+
 ## [1.5.2](https://github.com/wsehl/bstack/compare/v1.5.1...v1.5.2) (2026-08-30)
 
 
