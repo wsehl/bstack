@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.0](https://github.com/wsehl/bstack/compare/v1.5.3...v1.6.0) (2026-09-08)
+
+
+### Features
+
+* add update command ([9f817a7](https://github.com/wsehl/bstack/commit/9f817a7a116c14126200036db701d90bbc9b43fc))
+
+
+### Documentation
+
+* update readme ([93ea4ae](https://github.com/wsehl/bstack/commit/93ea4aea9cce4d3fd3971ff9eb4dfdea367d41a3))
+
+
+### Miscellaneous Chores
+
+* update tooling ([568d7a9](https://github.com/wsehl/bstack/commit/568d7a934e1de758ff7a920bf57f6220fae50498))
+
 ## [1.5.3](https://github.com/wsehl/bstack/compare/v1.5.2...v1.5.3) (2026-09-08)
 
 
