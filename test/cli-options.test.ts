@@ -88,6 +88,14 @@ describe("CLI parsing", () => {
     });
   });
 
+  test.each(["upgrade", "update"])("parses %s as upgrade", (argv0) => {
+    expect(parseCli([argv0])).toEqual({
+      command: "upgrade",
+      verbose: false,
+      options: {},
+    });
+  });
+
   test.each([
     {
       argv: ["checkout", "42", "--dry-run"],
@@ -105,9 +113,18 @@ describe("CLI parsing", () => {
       argv: ["--same-base"],
       message: "Option --same-base is not supported by sync",
     },
+    {
+      argv: ["upgrade", "--draft"],
+      message: "Option --draft is not supported by upgrade",
+    },
+    {
+      argv: ["update", "--verbose"],
+      message: "Option --verbose is not supported by upgrade",
+    },
     { argv: ["checkout"], message: "Usage: bstack checkout" },
     { argv: ["checkout", "42", "extra"], message: "Usage: bstack checkout" },
     { argv: ["sync", "extra"], message: "Usage: bstack [sync]" },
+    { argv: ["upgrade", "extra"], message: "Usage: bstack upgrade" },
     { argv: ["unknown"], message: "Unknown command: unknown" },
     { argv: ["--unknown"], message: "Unknown option" },
     { argv: ["--base"], message: "argument missing" },
@@ -121,6 +138,8 @@ describe("CLI parsing", () => {
     { argv: ["-h"], topic: undefined },
     { argv: ["sync", "--help"], topic: "sync" },
     { argv: ["checkout", "-h"], topic: "checkout" },
+    { argv: ["upgrade", "--help"], topic: "upgrade" },
+    { argv: ["update", "-h"], topic: "upgrade" },
     { argv: ["--help", "checkout"], topic: "checkout" },
   ])(
     "returns help without requiring command arguments for $argv",
@@ -142,19 +161,30 @@ describe("CLI parsing", () => {
 });
 
 describe("CLI help", () => {
-  test.each([undefined, "sync", "checkout"] as const)(
+  test.each([undefined, "sync", "checkout", "upgrade"] as const)(
     "omits the trailing newline for %s",
     (topic) => {
       expect(formatHelp(topic).endsWith("\n")).toBe(false);
     },
   );
 
-  test("lists both commands and their flags in root help", () => {
+  test("lists all commands and their flags in root help", () => {
     const help = formatHelp();
     expect(help).toContain("bstack [sync] [options]");
     expect(help).toContain("bstack checkout <PR-number-or-URL> [options]");
+    expect(help).toContain("bstack upgrade");
     expect(help).toContain("--dry-run");
     expect(help).toContain("--same-base");
+  });
+
+  test("help for upgrade lists the command without options", () => {
+    const help = formatHelp("upgrade");
+    expect(help).toContain("bstack upgrade");
+    expect(help).not.toContain("--draft");
+    expect(help).not.toContain("--same-base");
+    expect(help).not.toContain("--verbose");
+    expect(help).not.toContain("bstack [sync]");
+    expect(help).not.toContain("bstack checkout");
   });
 
   test.each(["sync", "checkout"] as const)(

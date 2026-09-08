@@ -2,11 +2,13 @@ import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 
 import type { CheckoutOptions } from "./commands/checkout";
 import type { SyncOptions } from "./commands/sync";
+import type { UpgradeOptions } from "./commands/upgrade";
 
 export type CliRequest =
   | { command: "sync"; options: SyncOptions; verbose: boolean }
   | { command: "checkout"; options: CheckoutOptions; verbose: boolean }
-  | { command: "help"; topic: "sync" | "checkout" | undefined }
+  | { command: "upgrade"; options: UpgradeOptions; verbose: boolean }
+  | { command: "help"; topic: "sync" | "checkout" | "upgrade" | undefined }
   | { command: "version" };
 
 type OptionDefinitions = Record<
@@ -62,18 +64,21 @@ const checkoutOptions = {
 const usage = {
   sync: "bstack [sync] [options]",
   checkout: "bstack checkout <PR-number-or-URL> [options]",
+  upgrade: "bstack upgrade",
 };
 
-export function formatHelp(topic?: "sync" | "checkout"): string {
-  const sections: Array<[string, OptionDefinitions]> = [
-    ["Options", sharedOptions],
-  ];
+export function formatHelp(topic?: "sync" | "checkout" | "upgrade"): string {
+  const sections: Array<[string, OptionDefinitions]> = [];
 
-  if (topic !== "checkout") {
+  if (!topic || topic === "sync" || topic === "checkout") {
+    sections.push(["Options", sharedOptions]);
+  }
+
+  if (!topic || topic === "sync") {
     sections.push(["Sync options", syncOptions]);
   }
 
-  if (topic !== "sync") {
+  if (!topic || topic === "checkout") {
     sections.push(["Checkout options", checkoutOptions]);
   }
 
@@ -86,12 +91,12 @@ export function formatHelp(topic?: "sync" | "checkout"): string {
     return `${title}:\n${lines.join("\n")}`;
   });
 
+  const optionLines = options.join("\n\n");
+
   return `bstack - turn a linear commit series into a native GitHub stack of PRs
 
 Usage:
-${(topic ? [usage[topic]] : Object.values(usage)).map((line) => `  ${line}`).join("\n")}
-
-${options.join("\n\n")}`;
+${(topic ? [usage[topic]] : Object.values(usage)).map((line) => `  ${line}`).join("\n")}${optionLines ? `\n\n${optionLines}` : ""}`;
 }
 
 // oxlint-disable-next-line eslint/complexity -- keep command validation and option defaults together
@@ -103,22 +108,30 @@ export function parseCli(argv: string[]): CliRequest {
   });
 
   const command = positionals[0] ?? "sync";
-  if (command !== "sync" && command !== "checkout") {
+  const canonical = command === "update" ? "upgrade" : command;
+  if (
+    canonical !== "sync" &&
+    canonical !== "checkout" &&
+    canonical !== "upgrade"
+  ) {
     throw new Error(`Unknown command: ${command}\n\n${formatHelp()}`);
   }
 
-  const allowedOptions = {
-    ...sharedOptions,
-    ...(command === "sync" ? syncOptions : checkoutOptions),
-  };
+  const allowedOptions =
+    canonical === "upgrade"
+      ? { help: sharedOptions.help, version: sharedOptions.version }
+      : {
+          ...sharedOptions,
+          ...(canonical === "sync" ? syncOptions : checkoutOptions),
+        };
   for (const name of Object.keys(values)) {
     if (!Object.hasOwn(allowedOptions, name)) {
-      throw new Error(`Option --${name} is not supported by ${command}`);
+      throw new Error(`Option --${name} is not supported by ${canonical}`);
     }
   }
 
   if (values.help) {
-    return { command: "help", topic: positionals[0] ? command : undefined };
+    return { command: "help", topic: positionals[0] ? canonical : undefined };
   }
 
   if (values.version) {
@@ -128,13 +141,21 @@ export function parseCli(argv: string[]): CliRequest {
   const common = { base: values.base, remote: values.remote };
   const verbose = values.verbose ?? false;
 
-  if (command === "checkout") {
+  if (canonical === "upgrade") {
+    if (positionals.length > 1) {
+      throw new Error(`Usage: ${usage.upgrade}`);
+    }
+
+    return { command: canonical, options: {}, verbose };
+  }
+
+  if (canonical === "checkout") {
     const reference = positionals[1];
     if (!reference || positionals.length > 2) {
       throw new Error(`Usage: ${usage.checkout}`);
     }
     return {
-      command,
+      command: canonical,
       verbose,
       options: { ...common, reference, sameBase: values["same-base"] ?? false },
     };
@@ -145,7 +166,7 @@ export function parseCli(argv: string[]): CliRequest {
   }
 
   return {
-    command,
+    command: canonical,
     verbose,
     options: {
       ...common,

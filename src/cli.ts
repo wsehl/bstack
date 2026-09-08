@@ -4,6 +4,7 @@ import pkg from "../package.json";
 import { formatHelp, parseCli } from "./cli-options";
 import { CheckoutCommand } from "./commands/checkout";
 import { formatSyncResult, SyncCommand } from "./commands/sync";
+import { formatUpgradeResult, UpgradeCommand } from "./commands/upgrade";
 import { GitCliRepository } from "./git";
 import { GitHubCliPlatform } from "./github";
 import { NodeProcessRunner } from "./process-runner";
@@ -31,6 +32,13 @@ function main() {
   );
   const repository = new GitCliRepository(cwd, runner);
   const github = new GitHubCliPlatform(cwd, runner);
+
+  if (request.command === "upgrade") {
+    const upgrade = new UpgradeCommand(runner, reporter);
+    console.log(formatUpgradeResult(upgrade.run()));
+
+    return;
+  }
 
   if (request.command === "checkout") {
     const { reference } = request.options;

@@ -176,6 +176,14 @@ bstack checkout 123
 bstack checkout https://github.com/owner/repo/pull/123
 ```
 
+### Upgrade bstack
+
+Self-update through the package manager that installed it (`update` works the same):
+
+```bash
+bstack upgrade
+```
+
 ## Options
 
 | Flag              | Description                                                       |
