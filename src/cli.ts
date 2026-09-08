@@ -35,13 +35,17 @@ function main() {
 
   if (request.command === "upgrade") {
     const upgrade = new UpgradeCommand(runner, reporter);
-    console.log(formatUpgradeResult(upgrade.run()));
+
+    const result = upgrade.run();
+
+    console.log(formatUpgradeResult(result));
 
     return;
   }
 
   if (request.command === "checkout") {
     const { reference } = request.options;
+
     const checkout = new CheckoutCommand(repository, github, reporter);
 
     const result = checkout.run(request.options);
@@ -55,11 +59,15 @@ function main() {
     return;
   }
 
-  const stateStore = new FileStateStore(repository.statePath());
-  const sync = new SyncCommand(repository, github, reporter, stateStore);
-  const result = sync.run(request.options);
+  if (request.command === "sync") {
+    const stateStore = new FileStateStore(repository.statePath());
 
-  console.log(formatSyncResult(result, request.options.dryRun));
+    const sync = new SyncCommand(repository, github, reporter, stateStore);
+
+    const result = sync.run(request.options);
+
+    console.log(formatSyncResult(result, request.options.dryRun));
+  }
 }
 
 try {

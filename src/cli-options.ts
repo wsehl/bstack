@@ -124,6 +124,7 @@ export function parseCli(argv: string[]): CliRequest {
           ...sharedOptions,
           ...(canonical === "sync" ? syncOptions : checkoutOptions),
         };
+
   for (const name of Object.keys(values)) {
     if (!Object.hasOwn(allowedOptions, name)) {
       throw new Error(`Option --${name} is not supported by ${canonical}`);
