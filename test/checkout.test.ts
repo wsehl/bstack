@@ -11,6 +11,7 @@ describe("stack checkout", () => {
     const repository = new FakeCheckoutRepository();
     repository.clean = false;
     const github = new FakeCheckoutGitHub("bstack/user/change-id");
+
     const command = new CheckoutCommand(
       fromPartial<GitRepository>(repository),
       fromPartial<GitHubPlatform>(github),
@@ -39,6 +40,7 @@ describe("stack checkout", () => {
       fromPartial<GitHubPlatform>(github),
       silentReporter,
     );
+
     const result = command.run({
       reference: "42",
       base: undefined,
@@ -62,6 +64,7 @@ describe("stack checkout", () => {
       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     ];
     const github = new FakeCheckoutGitHub("bstack/user/change-id");
+
     const command = new CheckoutCommand(
       fromPartial<GitRepository>(repository),
       fromPartial<GitHubPlatform>(github),
@@ -120,6 +123,7 @@ class FakeCheckoutRepository {
 
   mergeBase() {
     const mergeBase = this.mergeBases.shift();
+
     if (!mergeBase) {
       throw new Error("Unexpected merge-base lookup");
     }

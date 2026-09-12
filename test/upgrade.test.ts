@@ -49,6 +49,7 @@ describe("upgrade", () => {
         exitCode: 0,
       },
     });
+
     const reporter = new FakeReporter();
 
     const result = new UpgradeCommand(runner, reporter, neutralExecPath).run();

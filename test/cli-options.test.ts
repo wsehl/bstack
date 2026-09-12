@@ -191,6 +191,7 @@ describe("CLI help", () => {
     "includes shared options for %s",
     (topic) => {
       const help = formatHelp(topic);
+
       for (const flag of [
         "--base <branch>",
         "--remote <name>",

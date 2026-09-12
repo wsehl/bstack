@@ -73,11 +73,13 @@ export class GitCliRepository implements GitRepository {
     }
 
     const configured = this.configuredPushRemote();
+
     if (configured) {
       return configured;
     }
 
     const remotes = this.remotes();
+
     if (remotes.length === 1) {
       return remotes[0]!;
     }
@@ -150,9 +152,11 @@ export class GitCliRepository implements GitRepository {
 
     for (const rewrite of rewrites) {
       const raw = rewriteCommit(rewrite.commit, parent, rewrite.message);
+
       const oid = this.git(["hash-object", "-t", "commit", "-w", "--stdin"], {
         stdin: raw,
       }).stdout.trim();
+
       rewrittenOids.push(oid);
       parent = oid;
     }
@@ -170,6 +174,7 @@ export class GitCliRepository implements GitRepository {
       remote,
       branches.map((branch) => branch.name),
     );
+
     const updates = branches.filter(
       (branch) => existing.get(branch.name) !== branch.oid,
     );

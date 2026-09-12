@@ -18,6 +18,7 @@ describe("stack checkout integration", () => {
   }) => {
     const fixture = createRepository(temporaryDirectory);
     const reporter = new RecordingReporter();
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner(),
@@ -28,6 +29,7 @@ describe("stack checkout integration", () => {
       fromPartial<GitHubPlatform>(new CheckoutGitHub(fixture.headRef)),
       reporter,
     );
+
     const result = command.run({
       reference: "42",
       base: undefined,
@@ -60,10 +62,12 @@ describe("stack checkout integration", () => {
     temporaryDirectory,
   }) => {
     const fixture = createRepository(temporaryDirectory);
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner(),
     );
+
     const command = new CheckoutCommand(
       repository,
       fromPartial<GitHubPlatform>(new CheckoutGitHub(fixture.headRef)),
@@ -156,6 +160,7 @@ function git(cwd: string, ...args: string[]) {
     cwd,
     encoding: "utf8",
   });
+
   if (result.status !== 0) {
     throw new Error(result.stderr);
   }

@@ -55,8 +55,11 @@ export class UpgradeCommand {
       packageManager,
       command,
       output: [result.stdout, result.stderr]
-        .map((text) => text.trim())
-        .filter(Boolean)
+        .flatMap((text) => {
+          const trimmed = text.trim();
+
+          return trimmed ? [trimmed] : [];
+        })
         .join("\n"),
     };
   }
@@ -64,6 +67,7 @@ export class UpgradeCommand {
   private detectPackageManager(): PackageManager {
     // A package manager whose own runtime is running bstack (bun and pnpm
     // shim the node binary) is the likeliest owner, so check it first.
+    // SAFETY: packageManagers is declared as a complete Record for PackageManager.
     const order = (Object.keys(packageManagers) as PackageManager[]).sort(
       (a, b) => {
         const aMatch = this.execPath.includes(a);

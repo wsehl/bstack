@@ -16,20 +16,24 @@ function main() {
 
   if (request.command === "help") {
     console.log(formatHelp(request.topic));
+
     return;
   }
 
   if (request.command === "version") {
     console.log(pkg.version);
+
     return;
   }
 
   const cwd = process.cwd();
 
   const reporter = new ConsoleReporter();
+
   const runner = new NodeProcessRunner(
     request.verbose ? (invocation) => reporter.command(invocation) : undefined,
   );
+
   const repository = new GitCliRepository(cwd, runner);
   const github = new GitHubCliPlatform(cwd, runner);
 

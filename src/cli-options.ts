@@ -86,8 +86,10 @@ export function formatHelp(topic?: "sync" | "checkout" | "upgrade"): string {
     const lines = Object.entries(definitions).map(([name, option]) => {
       const alias = option.short ? `-${option.short}, ` : "";
       const argument = option.argument ? ` <${option.argument}>` : "";
+
       return `  ${`${alias}--${name}${argument}`.padEnd(20)}${option.description}`;
     });
+
     return `${title}:\n${lines.join("\n")}`;
   });
 
@@ -109,6 +111,7 @@ export function parseCli(argv: string[]): CliRequest {
 
   const command = positionals[0] ?? "sync";
   const canonical = command === "update" ? "upgrade" : command;
+
   if (
     canonical !== "sync" &&
     canonical !== "checkout" &&
@@ -152,9 +155,11 @@ export function parseCli(argv: string[]): CliRequest {
 
   if (canonical === "checkout") {
     const reference = positionals[1];
+
     if (!reference || positionals.length > 2) {
       throw new Error(`Usage: ${usage.checkout}`);
     }
+
     return {
       command: canonical,
       verbose,

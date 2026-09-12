@@ -143,6 +143,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
       "--field",
       `draft=${draft}`,
     ]).stdout;
+
     const created = v.parse(createdPullRequestSchema, JSON.parse(raw));
 
     return {
@@ -166,6 +167,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     if (!draft) {
       args.push("--open");
     }
+
     args.push(...pullRequests.map(String));
 
     this.gh(args);
@@ -182,6 +184,7 @@ export class GitHubCliPlatform implements GitHubPlatform {
     if (!draft) {
       args.push("--open");
     }
+
     args.push(String(stackNumber), ...pullRequests.map(String));
 
     this.gh(args);

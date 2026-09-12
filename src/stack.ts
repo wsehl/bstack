@@ -59,10 +59,12 @@ export class Stack {
     }
 
     const seen = new Set<string>();
+
     const duplicate = changes.find((change) => {
       if (seen.has(change.id)) {
         return true;
       }
+
       seen.add(change.id);
 
       return false;
@@ -83,6 +85,7 @@ export class Stack {
     const ids = commits.map((commit) => commit.changeId ?? generateChangeId());
 
     const rewritten = commits.some((commit) => commit.changeId === undefined);
+
     const rewrites = rewritten
       ? commits.map((commit, index) => ({
           commit,
@@ -114,6 +117,7 @@ export class Stack {
         `Git rewrote ${rewrittenOids.length} commits for a stack with ${this.changes.length} changes`,
       );
     }
+
     const changes = this.changes.map((change, index) => ({
       ...change,
       oid: rewrittenOids[index]!,
@@ -124,6 +128,7 @@ export class Stack {
 
   findPrevious(state: RepositoryState) {
     const ids = new Set(this.changes.map((change) => change.id));
+
     const matches = state.stacks.flatMap((stack, index) =>
       stack.changes.some((change) => ids.has(change.id))
         ? [{ index, stack }]
@@ -179,12 +184,15 @@ export class Stack {
     const currentIds = this.changes.map((change) => change.id);
     const previousIdSet = new Set(previousIds);
     const currentIdSet = new Set(currentIds);
+
     const removed = previous.changes.filter(
       (change) => !currentIdSet.has(change.id),
     );
+
     const added = this.changes.filter(
       (change) => !previousIdSet.has(change.id),
     );
+
     const baseChanged = previous.base !== options.base;
 
     return {
@@ -281,6 +289,7 @@ export class Stack {
   ): StackTransitionDecision {
     const removedPrefixWasMerged = isMergedPrefix(context);
     const survivingIds = context.previousIds.slice(context.removed.length);
+
     const survivingOrderIsUnchanged = survivingIds.every(
       (id, index) => context.currentIds[index] === id,
     );
@@ -306,6 +315,7 @@ export class Stack {
       if (context.baseChanged) {
         return this.transitionForChangedBase(context.previous, context.options);
       }
+
       if (context.previous.stackNumber === undefined) {
         throw new Error(
           "Cannot append after a merge because the native GitHub stack number is missing from local state",
@@ -326,6 +336,7 @@ export class Stack {
         "Cannot remove submitted commits because the native GitHub stack number is missing from local state",
       );
     }
+
     if (this.changes.length === 1) {
       return { kind: "collapse", stackNumber };
     }
@@ -383,6 +394,7 @@ function canPreserveHigherChanges(
     context.currentIds.every(
       (id, index) => context.previousIds[firstCurrentIndex + index] === id,
     );
+
   const hasHigherChanges =
     firstCurrentIndex + context.currentIds.length < context.previousIds.length;
 

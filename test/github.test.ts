@@ -28,6 +28,7 @@ describe("pull request creation and stack linking", () => {
     const createCommands = runner.commands.filter((command) =>
       command.includes("repos/{owner}/{repo}/pulls"),
     );
+
     expect(createCommands[0]).toContain(`title=${change.subject}`);
     expect(createCommands[0]).toContain(`body=${change.body}`);
     expect(createCommands[0]).toContain("base=main");
@@ -38,6 +39,7 @@ describe("pull request creation and stack linking", () => {
     const linkCommands = runner.commands.filter(
       (command) => command[1] === "stack" && command[2] === "link",
     );
+
     expect(linkCommands[0]).toContain("--open");
     expect(linkCommands[1]).not.toContain("--open");
     expect(linkCommands[0]?.slice(-2)).toEqual(["1", "2"]);
@@ -77,6 +79,7 @@ class RecordingRunner implements ProcessRunner {
     this.commands.push([...command]);
     const isCreate = command.includes("repos/{owner}/{repo}/pulls");
     const isCurrentUser = command[1] === "api" && command[2] === "user";
+
     return {
       stdout: isCurrentUser
         ? "wsehl\n"

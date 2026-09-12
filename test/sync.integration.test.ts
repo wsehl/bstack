@@ -24,11 +24,14 @@ describe("stack sync integration", () => {
   }) => {
     const fixture = createRepository(temporaryDirectory);
     const commands: string[][] = [];
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner((command) => commands.push([...command])),
     );
+
     const github = new FakeGitHub();
+
     const options = {
       base: "main",
       remote: "origin",
@@ -63,17 +66,21 @@ describe("stack sync integration", () => {
   }) => {
     const fixture = createRepository(temporaryDirectory);
     const commands: string[][] = [];
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner((command) => commands.push([...command])),
     );
+
     const github = new FakeGitHub();
+
     const options = {
       base: "main",
       remote: "origin",
       draft: false,
       dryRun: false,
     } as const;
+
     const submitted = sync(repository, github, {
       ...options,
       reporter: new RecordingReporter(),
@@ -86,6 +93,7 @@ describe("stack sync integration", () => {
     const reporter = new RecordingReporter();
 
     const updated = sync(repository, github, { ...options, reporter });
+
     const pushCommand = commands.find(
       (command) => command[0] === "git" && command[1] === "push",
     );
@@ -109,10 +117,12 @@ describe("stack sync integration", () => {
     temporaryDirectory,
   }) => {
     const fixture = createRepository(temporaryDirectory);
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner(),
     );
+
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
 
@@ -120,6 +130,7 @@ describe("stack sync integration", () => {
     writeFileSync(join(fixture.worktree, "staged.txt"), "staged\n");
     git(fixture.worktree, "add", "staged.txt");
     writeFileSync(join(fixture.worktree, "untracked.txt"), "untracked\n");
+
     const statusBefore = git(
       fixture.worktree,
       "status",
@@ -151,10 +162,12 @@ describe("stack sync integration", () => {
       const fixture = createRepository(temporaryDirectory);
       const github = new FakeGitHub();
       const reporter = new RecordingReporter();
+
       const repository = new GitCliRepository(
         fixture.worktree,
         new NodeProcessRunner(),
       );
+
       const options = {
         base: "main",
         remote: "origin",
@@ -167,6 +180,7 @@ describe("stack sync integration", () => {
       git(fixture.worktree, "add", "third.txt");
       git(fixture.worktree, "commit", "-m", "Third change");
       const submitted = sync(repository, github, options);
+
       const surviving = submitted.changes.filter(
         (_change, changeIndex) => changeIndex !== index,
       );
@@ -222,10 +236,12 @@ describe("stack sync integration", () => {
     const fixture = createRepository(temporaryDirectory);
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner(),
     );
+
     const options = {
       base: "main",
       remote: "origin",
@@ -233,6 +249,7 @@ describe("stack sync integration", () => {
       dryRun: false,
       reporter,
     } as const;
+
     const submitted = sync(repository, github, options);
     const survivor = submitted.changes[1]!;
 
@@ -263,10 +280,12 @@ describe("stack sync integration", () => {
     const fixture = createRepository(temporaryDirectory);
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner(),
     );
+
     const options = {
       base: "main",
       remote: "origin",
@@ -274,6 +293,7 @@ describe("stack sync integration", () => {
       dryRun: false,
       reporter,
     } as const;
+
     const submitted = sync(repository, github, options);
 
     git(fixture.worktree, "switch", "--detach", "main");
@@ -318,10 +338,12 @@ describe("stack sync integration", () => {
     const fixture = createRepository(temporaryDirectory);
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner(),
     );
+
     const options = {
       base: "main",
       remote: "origin",
@@ -368,6 +390,7 @@ describe("stack sync integration", () => {
     const fixture = createRepository(temporaryDirectory);
     const github = new FakeGitHub();
     const reporter = new RecordingReporter();
+
     const repository = new GitCliRepository(
       fixture.worktree,
       new NodeProcessRunner(),
@@ -451,6 +474,7 @@ describe("stack sync integration", () => {
     expect(git(fixture.worktree, "rev-parse", "HEAD").stdout.trim()).toBe(
       first.changes[0]!.oid,
     );
+
     const checkedOutPrefix = sync(repository, github, {
       base: "main",
       remote: "origin",
@@ -458,6 +482,7 @@ describe("stack sync integration", () => {
       dryRun: false,
       reporter,
     });
+
     expect(checkedOutPrefix.changes).toHaveLength(1);
     expect(checkedOutPrefix.outcomes[0]!.outcome).toBe("unchanged");
     expect(reporter.messages).toContain(
@@ -498,6 +523,7 @@ describe("stack sync integration", () => {
     )
       .stdout.trim()
       .split("\n")[0]!;
+
     const firstPr = second.changes[0]!.pullRequest!;
     github.prs.set(second.changes[0]!.remoteBranch, {
       ...firstPr,
@@ -573,9 +599,11 @@ class FakeGitHub implements GitHubPlatform {
     const pr = [...this.prs.values()].find(
       (candidate) => candidate.number === number,
     );
+
     if (!pr) {
       throw new Error(`Missing fake PR ${number}`);
     }
+
     return pr;
   }
 
@@ -611,9 +639,11 @@ class FakeGitHub implements GitHubPlatform {
     const entry = [...this.prs.entries()].find(
       ([, candidate]) => candidate.number === pr.number,
     );
+
     if (!entry) {
       throw new Error(`Missing fake PR ${pr.number}`);
     }
+
     this.prs.set(entry[0], {
       ...entry[1],
       state: "CLOSED",
@@ -626,6 +656,7 @@ class FakeGitHub implements GitHubPlatform {
 
   editPullRequest(pr: PullRequest, change: StackChange) {
     const current = this.prs.get(change.remoteBranch);
+
     if (current) {
       this.prs.set(change.remoteBranch, {
         ...current,
@@ -641,12 +672,15 @@ class FakeGitHub implements GitHubPlatform {
 
   pullRequestHead(reference: string) {
     const pr = this.pullRequest(Number(reference));
+
     const entry = [...this.prs.entries()].find(
       ([, candidate]) => candidate.number === pr.number,
     );
+
     if (!entry) {
       throw new Error(`Missing branch for fake PR ${reference}`);
     }
+
     return entry[0];
   }
 
@@ -663,7 +697,9 @@ class FakeGitHub implements GitHubPlatform {
       body: change.body,
       isDraft: draft,
     };
+
     this.prs.set(change.remoteBranch, pr);
+
     return pr;
   }
 }
@@ -702,6 +738,7 @@ function createRepository(root: string) {
   writeFileSync(join(worktree, "second.txt"), "second\n");
   git(worktree, "add", ".");
   git(worktree, "commit", "-m", "Second change");
+
   return { worktree, remote };
 }
 
@@ -710,9 +747,11 @@ function git(cwd: string, ...args: string[]) {
     cwd,
     encoding: "utf8",
   });
+
   if (result.status !== 0) {
     throw new Error(result.stderr);
   }
+
   return { stdout: result.stdout, exitCode: result.status };
 }
 
@@ -721,5 +760,6 @@ function gitAllowFailure(cwd: string, ...args: string[]) {
     cwd,
     encoding: "utf8",
   });
+
   return { stdout: result.stdout, exitCode: result.status ?? 1 };
 }

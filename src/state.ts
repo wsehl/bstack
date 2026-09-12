@@ -47,9 +47,11 @@ export class FileStateStore implements StateStore {
           base: stack.base,
           changes: stack.changes,
         };
+
         if (stack.stackNumber !== undefined) {
           stored.stackNumber = stack.stackNumber;
         }
+
         return stored;
       });
 

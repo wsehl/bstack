@@ -125,6 +125,7 @@ describe("stack transition analysis", () => {
 
   test("preserves higher changes when syncing a detached down-stack prefix", () => {
     const previous = stack("a", "b", "c");
+
     const transition = Stack.fromChanges(changes("b")).transitionFrom(
       previous,
       {
@@ -140,6 +141,7 @@ describe("stack transition analysis", () => {
 
   test("uses a discovered stack number when local state lacks one", () => {
     const previous = stackWithoutNumber("a", "b");
+
     const transition = Stack.fromChanges(changes("x", "a", "b")).transitionFrom(
       previous,
       {

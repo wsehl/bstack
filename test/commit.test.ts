@@ -32,10 +32,12 @@ describe("commit identity", () => {
       "Original message",
       "",
     ].join("\n");
+
     const commit = parseRawCommit(
       "cccccccccccccccccccccccccccccccccccccccc",
       raw,
     );
+
     const rewritten = rewriteCommit(
       commit,
       "dddddddddddddddddddddddddddddddddddddddd",

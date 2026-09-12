@@ -14,21 +14,26 @@ describe("sync output", () => {
       "feat(compiler): implement constant folding for unary minus (#33140)",
       "created",
     );
+
     const updated = change(
       "222222222222",
       "fix(devtools): clear highlight when mouse leaves DevTools panel (#36177)",
       "updated",
     );
+
     const unchanged = change(
       "333333333333",
       "test(eslint): create eslint test fixtures (#32396)",
       "unchanged",
     );
+
     const closed = pullRequest(
       14,
       "refactor(eslint-plugin-react-hooks): move rules to `rules` folder (#32411)",
     );
+
     const changes = [created, updated, unchanged];
+
     const outcomes: SyncOutcome[] = [
       currentOutcome("created", created, 11),
       currentOutcome("updated", updated, 12),

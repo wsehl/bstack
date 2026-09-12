@@ -8,6 +8,7 @@ const changeIdTrailerPattern = new RegExp(
   `^${CHANGE_ID_TRAILER}:\\s*(\\S+)\\s*$`,
   "gm",
 );
+
 const changeIdTrailerLinePattern = new RegExp(
   `^${CHANGE_ID_TRAILER}:\\s*\\S+\\s*$`,
 );
@@ -19,16 +20,19 @@ type CommitMessage = {
 
 export function readChangeId(message: string): string | undefined {
   const matches = [...message.matchAll(changeIdTrailerPattern)];
+
   if (matches.length > 1) {
     throw new Error(
       `A commit contains more than one ${CHANGE_ID_TRAILER} trailer`,
     );
   }
+
   return matches[0]?.[1];
 }
 
 export function addChangeId(message: string, changeId: string): string {
   const trimmed = message.trimEnd();
+
   return `${trimmed}\n\n${CHANGE_ID_TRAILER}: ${changeId}\n`;
 }
 
@@ -38,6 +42,7 @@ export function generateChangeId(): string {
 
 export function parseRawCommit(oid: string, raw: string): Commit {
   const boundary = raw.indexOf("\n\n");
+
   if (boundary === -1) {
     throw new Error(`Commit ${oid} has an invalid object format`);
   }
@@ -51,6 +56,7 @@ export function parseRawCommit(oid: string, raw: string): Commit {
       `Commit ${oid} must have exactly one parent; merge and root commits are not supported`,
     );
   }
+
   if (headers.some((line) => line.startsWith("gpgsig "))) {
     throw new Error(
       `Commit ${oid} is signed. bstack cannot add an identity trailer without replacing its signature`,
@@ -83,8 +89,10 @@ export function rewriteCommit(
         rewrittenHeaders.push(`parent ${parent}`);
         replacedParent = true;
       }
+
       continue;
     }
+
     rewrittenHeaders.push(header);
   }
 
@@ -97,6 +105,7 @@ export function splitCommitMessage(message: string): CommitMessage {
     .filter((line) => !changeIdTrailerLinePattern.test(line))
     .join("\n")
     .trim();
+
   const [subject = "Untitled change", ...bodyLines] =
     withoutIdentity.split("\n");
 

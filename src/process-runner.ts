@@ -45,6 +45,7 @@ export class NodeProcessRunner implements ProcessRunner {
       encoding: "utf8",
       env: mergeEnvironment(options.env),
     });
+
     const commandResult = normalizeResult(result);
 
     if (commandResult.exitCode !== 0 && !options.allowFailure) {

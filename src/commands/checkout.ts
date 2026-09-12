@@ -37,6 +37,7 @@ export class CheckoutCommand {
     this.reporter.progress(`Looking up pull request ${options.reference}`);
 
     const headRef = this.github.pullRequestHead(options.reference);
+
     if (!headRef.startsWith("bstack/")) {
       this.reporter.progress(
         "This is not a bstack pull request; delegating to gh pr checkout",
@@ -51,6 +52,7 @@ export class CheckoutCommand {
 
     let currentBase: string | undefined;
     let remoteBase: string | undefined;
+
     if (options.sameBase) {
       const base = options.base ?? this.github.defaultBranch();
       this.reporter.progress(
@@ -62,8 +64,10 @@ export class CheckoutCommand {
 
     this.reporter.progress(`Fetching ${remote}/${headRef}`);
     const target = this.repository.fetchRemoteBranch(remote, headRef);
+
     if (currentBase && remoteBase) {
       const targetBase = this.repository.mergeBase(target, remoteBase);
+
       if (currentBase !== targetBase) {
         throw new Error(
           `Checkout would change the merge base from ${currentBase.slice(0, 8)} to ${targetBase.slice(0, 8)}`,

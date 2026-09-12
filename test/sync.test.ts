@@ -57,6 +57,7 @@ describe("stack sync", () => {
   test("rebuilds unchanged pull requests when the stack base changes", () => {
     const repository = new SyncRepository([commit("one"), commit("two")]);
     const github = new SyncGitHub();
+
     const stateStore = new RecordingStateStore({
       schemaVersion: 1,
       stacks: [
@@ -98,8 +99,10 @@ describe("stack sync", () => {
       commit("one"),
       commit("two"),
     ]);
+
     const github = new SyncGitHub();
     const previousBranches = ["bstack/test-user/one", "bstack/test-user/two"];
+
     const state: RepositoryState = {
       schemaVersion: 1,
       stacks: [
@@ -116,6 +119,7 @@ describe("stack sync", () => {
         },
       ],
     };
+
     const stateStore = new RecordingStateStore(state);
     const rebuildError = new Error("link failed");
     github.failNextLinkWith = rebuildError;
@@ -147,6 +151,7 @@ describe("stack sync", () => {
   test("restores the previous stack when a reordered branch push fails", () => {
     const repository = new SyncRepository([commit("two"), commit("one")]);
     const github = new SyncGitHub();
+
     const stateStore = new RecordingStateStore({
       schemaVersion: 1,
       stacks: [
@@ -163,6 +168,7 @@ describe("stack sync", () => {
         },
       ],
     });
+
     const pushError = new Error("push failed");
     repository.failPushWith = pushError;
 
@@ -194,6 +200,7 @@ describe("stack sync", () => {
   test("updates the matched stack by index without replacing another stack", () => {
     const repository = new SyncRepository([commit("one")]);
     const github = new SyncGitHub();
+
     const unrelated = {
       remote: "origin",
       base: "main",
@@ -206,6 +213,7 @@ describe("stack sync", () => {
         },
       ],
     };
+
     const stateStore = new RecordingStateStore({
       schemaVersion: 1,
       stacks: [
@@ -308,6 +316,7 @@ class SyncRepository {
     if (this.failPushWith) {
       throw this.failPushWith;
     }
+
     this.pushCalls.push({ remote, branches: [...branches] });
 
     return {
@@ -383,6 +392,7 @@ class SyncGitHub {
   ) {
     this.mutations.push("link");
     this.linkCalls.push({ pullRequests: [...pullRequests], base, draft });
+
     if (this.failNextLinkWith) {
       const error = this.failNextLinkWith;
       this.failNextLinkWith = undefined;

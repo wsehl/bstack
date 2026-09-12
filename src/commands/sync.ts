@@ -115,6 +115,7 @@ export class SyncCommand {
     );
 
     const pendingStack = Stack.fromCommits(commits, userLogin);
+
     if (pendingStack.rewritten) {
       this.reporter.progress(
         options.dryRun
@@ -154,6 +155,7 @@ export class SyncCommand {
 
     const state = this.stateStore.read();
     const previousEntry = stack.findPrevious(state);
+
     const transition = stack.transitionFrom(previousEntry?.stack, {
       base,
       preserveHigherChanges: this.repository.currentBranch() === undefined,
@@ -181,6 +183,7 @@ export class SyncCommand {
       transition,
       changes,
     );
+
     this.updatePullRequestMetadata(matchedChanges);
     this.saveStack(
       state,
@@ -192,6 +195,7 @@ export class SyncCommand {
     );
 
     const synchronized = synchronizeChanges(matchedChanges);
+
     const outcomes = buildOutcomes(matchedChanges, omittedPullRequests, {
       previous: transition.previous,
       base,
@@ -220,6 +224,7 @@ export class SyncCommand {
           oid: change.oid,
         })),
       );
+
       reportPushResult(this.reporter, pushResult);
 
       return new Set(pushResult.updated);
@@ -243,6 +248,7 @@ export class SyncCommand {
       change,
       current: this.github.pullRequestForBranch(change.remoteBranch),
     }));
+
     const matchedChanges: MatchedChange[] = [];
 
     for (const { change, current } of candidates) {
@@ -331,12 +337,15 @@ export class SyncCommand {
         url: pullRequest.url,
       }),
     );
+
     const storedChanges = changesForState(synchronizedChanges, transition);
+
     const updatedStack: StoredStack = {
       remote,
       base,
       changes: storedChanges,
     };
+
     const stackNumber = this.updatedStackNumber(transition, matchedChanges);
 
     if (stackNumber !== undefined) {
@@ -557,6 +566,7 @@ export class SyncCommand {
       const pullRequests = previous.changes
         .map((change) => this.github.pullRequest(change.pullRequest))
         .filter((pullRequest) => pullRequest.state === "OPEN");
+
       const firstPullRequest = pullRequests[0];
 
       if (pullRequests.length === 1 && firstPullRequest) {
@@ -657,6 +667,7 @@ function buildOutcomes(
       pullRequest: match.pullRequest,
     }),
   );
+
   const closedOutcomes = omittedPullRequests.map(
     (pullRequest): SyncOutcome => ({
       outcome: "closed",
@@ -679,10 +690,13 @@ function changeOutcome(
 
   const { change, pullRequest } = match;
   const previousBase = previousBaseFor(change, context.previous);
+
   const currentBase =
     matchedChanges[index - 1]?.change.remoteBranch ?? context.base;
+
   const metadataChanged =
     pullRequest.title !== change.subject || pullRequest.body !== change.body;
+
   const updated =
     context.pushedBranches.has(change.remoteBranch) ||
     previousBase !== currentBase ||
@@ -750,6 +764,7 @@ function writeUpdatedState(
 
 export function formatSyncResult(result: SyncResult, dryRun: boolean): string {
   const changeCount = `${result.changes.length} change${result.changes.length === 1 ? "" : "s"}`;
+
   const lines = [
     dryRun
       ? `Would sync ${changeCount} against ${result.base}:`
