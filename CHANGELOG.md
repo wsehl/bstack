@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/wsehl/bstack/compare/v1.7.0...v1.8.0) (2026-09-29)
+
+
+### Features
+
+* **install:** add standalone binary install and detect the real upgrade owner ([#44](https://github.com/wsehl/bstack/issues/44)) ([16d70f9](https://github.com/wsehl/bstack/commit/16d70f9c4c2ee8f149116e664e96b0ca179a0867))
+
 ## [1.7.0](https://github.com/wsehl/bstack/compare/v1.6.1...v1.7.0) (2026-09-29)
 
 
