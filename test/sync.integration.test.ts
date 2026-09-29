@@ -37,6 +37,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
     } as const;
 
     sync(repository, github, {
@@ -79,6 +80,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
     } as const;
 
     const submitted = sync(repository, github, {
@@ -142,6 +144,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     });
 
@@ -173,6 +176,7 @@ describe("stack sync integration", () => {
         remote: "origin",
         draft: false,
         dryRun: false,
+        closeOmitted: false,
         reporter,
       } as const;
 
@@ -247,6 +251,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     } as const;
 
@@ -291,6 +296,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     } as const;
 
@@ -349,6 +355,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     } as const;
 
@@ -401,6 +408,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     });
 
@@ -480,6 +488,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     });
 
@@ -499,6 +508,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     });
 
@@ -538,6 +548,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     });
 
@@ -550,6 +561,7 @@ describe("stack sync integration", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
       reporter,
     });
 

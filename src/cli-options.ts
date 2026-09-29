@@ -52,6 +52,10 @@ const syncOptions = {
     type: "boolean",
     description: "Preview PR and stack changes without rewriting or pushing",
   },
+  "close-omitted": {
+    type: "boolean",
+    description: "Allow closing PRs of a stack last synced from another branch",
+  },
 } satisfies OptionDefinitions;
 
 const checkoutOptions = {
@@ -178,6 +182,7 @@ export function parseCli(argv: string[]): CliRequest {
       ...common,
       draft: values.draft ?? false,
       dryRun: values["dry-run"] ?? false,
+      closeOmitted: values["close-omitted"] ?? false,
     },
   };
 }

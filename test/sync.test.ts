@@ -25,6 +25,7 @@ describe("stack sync", () => {
         remote: "origin",
         draft: false,
         dryRun: false,
+        closeOmitted: false,
       }),
     ).toThrow("A stack cannot contain duplicate bstack-id same");
     expect(repository.pushCalls).toEqual([]);
@@ -42,6 +43,7 @@ describe("stack sync", () => {
       remote: "origin",
       draft: false,
       dryRun: true,
+      closeOmitted: false,
     });
 
     expect(result.rewritten).toBe(true);
@@ -82,6 +84,7 @@ describe("stack sync", () => {
       remote: "origin",
       draft: false,
       dryRun: true,
+      closeOmitted: false,
     });
 
     expect(result).toMatchObject({
@@ -110,6 +113,7 @@ describe("stack sync", () => {
         remote: "origin",
         draft: false,
         dryRun: false,
+        closeOmitted: false,
       }),
     ).toThrow(
       "Pull request #1 (Change one) is already merged but still in the local stack. Rebase onto origin/main and run bstack again",
@@ -118,6 +122,68 @@ describe("stack sync", () => {
     expect(github.mutations).toEqual([]);
     expect(stateStore.writes).toEqual([]);
   });
+
+  test("refuses to close pull requests of a stack synced from another branch", () => {
+    const repository = new SyncRepository([commit("two")]);
+    const github = new SyncGitHub();
+    const stateStore = new RecordingStateStore(stackFromBranch("feature"));
+    repository.branch = "cherry-picked";
+
+    expect(() =>
+      command(repository, github, stateStore).run({
+        base: "main",
+        remote: "origin",
+        draft: false,
+        dryRun: false,
+        closeOmitted: false,
+      }),
+    ).toThrow(
+      "These commits belong to a stack last synced from feature, but HEAD is on cherry-picked. Syncing would close #1. Switch back to feature, or pass --close-omitted if you meant to drop them",
+    );
+    expect(repository.pushCalls).toEqual([]);
+    expect(github.mutations).toEqual([]);
+    expect(stateStore.writes).toEqual([]);
+  });
+
+  test("closes omitted pull requests from another branch when allowed", () => {
+    const repository = new SyncRepository([commit("two")]);
+    const github = new SyncGitHub();
+    const stateStore = new RecordingStateStore(stackFromBranch("feature"));
+    repository.branch = "renamed";
+
+    command(repository, github, stateStore).run({
+      base: "main",
+      remote: "origin",
+      draft: false,
+      dryRun: false,
+      closeOmitted: true,
+    });
+
+    expect(github.mutations).toContain("close");
+    expect(stateStore.writes.at(-1)?.stacks[0]?.branch).toBe("renamed");
+  });
+
+  test.each([
+    ["feature", "feature"],
+    [undefined, "feature"],
+  ])(
+    "records the branch the stack was synced from when HEAD is %s",
+    (branch, expected) => {
+      const repository = new SyncRepository([commit("one"), commit("two")]);
+      const stateStore = new RecordingStateStore(stackFromBranch("feature"));
+      repository.branch = branch;
+
+      command(repository, new SyncGitHub(), stateStore).run({
+        base: "main",
+        remote: "origin",
+        draft: false,
+        dryRun: false,
+        closeOmitted: false,
+      });
+
+      expect(stateStore.writes.at(-1)?.stacks[0]?.branch).toBe(expected);
+    },
+  );
 
   test("rebuilds unchanged pull requests when the stack base changes", () => {
     const repository = new SyncRepository([commit("one"), commit("two")]);
@@ -145,6 +211,7 @@ describe("stack sync", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
     });
 
     expect(github.unstackCalls).toEqual([7]);
@@ -195,6 +262,7 @@ describe("stack sync", () => {
         remote: "origin",
         draft: false,
         dryRun: false,
+        closeOmitted: false,
       }),
     ).toThrow(rebuildError);
     expect(github.unstackCalls).toEqual([7]);
@@ -243,6 +311,7 @@ describe("stack sync", () => {
         remote: "origin",
         draft: false,
         dryRun: false,
+        closeOmitted: false,
       }),
     ).toThrow(pushError);
     expect(github.unstackCalls).toEqual([7]);
@@ -303,6 +372,7 @@ describe("stack sync", () => {
       remote: "origin",
       draft: false,
       dryRun: false,
+      closeOmitted: false,
     });
 
     expect(stateStore.writes.at(-1)?.stacks).toEqual([
@@ -319,6 +389,26 @@ const emptyState: RepositoryState = {
   schemaVersion: 1,
   stacks: [],
 };
+
+function stackFromBranch(branch: string): RepositoryState {
+  return {
+    schemaVersion: 1,
+    stacks: [
+      {
+        remote: "origin",
+        base: "main",
+        branch,
+        stackNumber: 7,
+        changes: ["one", "two"].map((id, index) => ({
+          id,
+          remoteBranch: `bstack/test-user/${id}`,
+          pullRequest: index + 1,
+          url: `https://example.test/pull/${index + 1}`,
+        })),
+      },
+    ],
+  };
+}
 
 const silentReporter: Reporter = {
   progress() {},
@@ -352,8 +442,10 @@ class SyncRepository {
 
   assertReady() {}
 
+  branch: string | undefined = "feature";
+
   currentBranch() {
-    return "feature";
+    return this.branch;
   }
 
   resolveRemote(requested?: string) {
