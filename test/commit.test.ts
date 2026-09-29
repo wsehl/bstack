@@ -53,6 +53,42 @@ describe("commit identity", () => {
     });
   });
 
+  test.each([
+    ["gpgsig -----BEGIN PGP SIGNATURE-----", "is signed"],
+    ["gpgsig-sha256 -----BEGIN PGP SIGNATURE-----", "is signed"],
+    ["encoding ISO-8859-1", "uses the ISO-8859-1 message encoding"],
+  ])("rejects commits with the %s header", (header, message) => {
+    const raw = [
+      "tree aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "parent bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "author Ada <ada@example.com> 1 +0000",
+      "committer Ada <ada@example.com> 1 +0000",
+      header,
+      "",
+      "Original message",
+      "",
+    ].join("\n");
+
+    expect(() =>
+      parseRawCommit("cccccccccccccccccccccccccccccccccccccccc", raw),
+    ).toThrow(message);
+  });
+
+  test("accepts an explicit UTF-8 encoding header", () => {
+    const raw = [
+      "tree aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "parent bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "encoding UTF-8",
+      "",
+      "Original message",
+      "",
+    ].join("\n");
+
+    expect(
+      parseRawCommit("cccccccccccccccccccccccccccccccccccccccc", raw).message,
+    ).toBe("Original message\n");
+  });
+
   test("rewrites only the parent and message of a raw commit", () => {
     const raw = [
       "tree aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
