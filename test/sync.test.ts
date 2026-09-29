@@ -98,6 +98,27 @@ describe("stack sync", () => {
     expect(github.mutations).toEqual([]);
   });
 
+  test("refuses to sync a change whose pull request is already merged", () => {
+    const repository = new SyncRepository([commit("one"), commit("two")]);
+    const github = new SyncGitHub();
+    github.mergedBranches.add("bstack/test-user/one");
+    const stateStore = new RecordingStateStore(emptyState);
+
+    expect(() =>
+      command(repository, github, stateStore).run({
+        base: "main",
+        remote: "origin",
+        draft: false,
+        dryRun: false,
+      }),
+    ).toThrow(
+      "Pull request #1 (Change one) is already merged but still in the local stack. Rebase onto origin/main and run bstack again",
+    );
+    expect(repository.pushCalls).toEqual([]);
+    expect(github.mutations).toEqual([]);
+    expect(stateStore.writes).toEqual([]);
+  });
+
   test("rebuilds unchanged pull requests when the stack base changes", () => {
     const repository = new SyncRepository([commit("one"), commit("two")]);
     const github = new SyncGitHub();
@@ -384,6 +405,7 @@ class SyncGitHub {
     draft: boolean;
   }> = [];
   failNextLinkWith: Error | undefined;
+  readonly mergedBranches = new Set<string>();
 
   assertReady() {}
 
@@ -402,7 +424,7 @@ class SyncGitHub {
     return {
       number,
       url: `https://example.test/pull/${number}`,
-      state: "OPEN",
+      state: this.mergedBranches.has(branch) ? "MERGED" : "OPEN",
       title: `Change ${id}`,
       body: "",
       isDraft: false,
