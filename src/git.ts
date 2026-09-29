@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { parseRawCommit, rewriteCommit } from "./commit";
 import type { Commit } from "./model";
 import type { ProcessRunner } from "./process-runner";
@@ -203,13 +205,15 @@ export class GitCliRepository implements GitRepository {
     };
   }
 
+  // Store state in the common git directory so every worktree shares it.
   statePath() {
-    return this.git([
+    const commonDir = this.git([
       "rev-parse",
       "--path-format=absolute",
-      "--git-path",
-      "bstack/state.json",
+      "--git-common-dir",
     ]).stdout.trim();
+
+    return join(commonDir, "bstack", "state.json");
   }
 
   private remotes() {
