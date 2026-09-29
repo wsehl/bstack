@@ -13,6 +13,11 @@ const changeIdTrailerLinePattern = new RegExp(
   `^${CHANGE_ID_TRAILER}:\\s*\\S+\\s*$`,
 );
 
+// Git trailer lines look like `Token: value`; indented lines continue the
+// previous trailer.
+const trailerLinePattern = /^[A-Za-z0-9-]+:\s/;
+const trailerContinuationPattern = /^[ \t]/;
+
 type CommitMessage = {
   subject: string;
   body: string;
@@ -32,8 +37,30 @@ export function readChangeId(message: string): string | undefined {
 
 export function addChangeId(message: string, changeId: string): string {
   const trimmed = message.trimEnd();
+  const separator = endsWithTrailerBlock(trimmed) ? "\n" : "\n\n";
 
-  return `${trimmed}\n\n${CHANGE_ID_TRAILER}: ${changeId}\n`;
+  return `${trimmed}${separator}${CHANGE_ID_TRAILER}: ${changeId}\n`;
+}
+
+// Git only reads trailers from the final paragraph, so the change ID must
+// join an existing trailer block instead of starting a new paragraph after
+// it, which would hide trailers such as Co-authored-by.
+function endsWithTrailerBlock(message: string): boolean {
+  const paragraphs = message.split(/\n[ \t]*\n/);
+
+  if (paragraphs.length < 2) {
+    return false;
+  }
+
+  const lines = paragraphs.at(-1)!.split("\n");
+
+  return (
+    trailerLinePattern.test(lines[0]!) &&
+    lines.every(
+      (line) =>
+        trailerLinePattern.test(line) || trailerContinuationPattern.test(line),
+    )
+  );
 }
 
 export function generateChangeId(): string {
