@@ -20,7 +20,7 @@ export class ProcessError extends Error {
   ) {
     const detail = result.stderr.trim() || result.stdout.trim();
     super(
-      `${command.join(" ")} failed with exit code ${result.exitCode}${detail ? `\n${detail}` : ""}`,
+      `${formatCommand(command.map(abbreviateArgument))} failed with exit code ${result.exitCode}${detail ? `\n${detail}` : ""}`,
     );
   }
 }
@@ -88,6 +88,19 @@ function normalizeResult(result: SpawnSyncReturns<string>): ProcessResult {
 
 export function formatCommand(command: readonly string[]): string {
   return command.map(formatArgument).join(" ");
+}
+
+const maxArgumentLength = 60;
+
+// Keep errors readable when an argument carries a whole PR body.
+function abbreviateArgument(argument: string): string {
+  const [firstLine = ""] = argument.split("\n", 1);
+
+  if (firstLine === argument && argument.length <= maxArgumentLength) {
+    return argument;
+  }
+
+  return `${firstLine.slice(0, maxArgumentLength)}…`;
 }
 
 function formatArgument(argument: string): string {
