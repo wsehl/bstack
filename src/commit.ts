@@ -84,9 +84,23 @@ export function parseRawCommit(oid: string, raw: string): Commit {
     );
   }
 
-  if (headers.some((line) => line.startsWith("gpgsig "))) {
+  if (
+    headers.some(
+      (line) => line.startsWith("gpgsig ") || line.startsWith("gpgsig-sha256 "),
+    )
+  ) {
     throw new Error(
       `Commit ${oid} is signed. bstack cannot add an identity trailer without replacing its signature`,
+    );
+  }
+
+  const encoding = headers
+    .find((line) => line.startsWith("encoding "))
+    ?.slice("encoding ".length);
+
+  if (encoding && !/^utf-?8$/i.test(encoding)) {
+    throw new Error(
+      `Commit ${oid} uses the ${encoding} message encoding; bstack only supports UTF-8 commit messages`,
     );
   }
 
