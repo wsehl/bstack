@@ -96,7 +96,7 @@ export class SyncCommand {
 
   run(options: SyncOptions): SyncResult {
     const { base, remote, stack } = this.prepareStack(options);
-    const plan = this.plan(stack, base);
+    const plan = this.plan(stack, base, remote);
 
     if (options.dryRun) {
       return this.dryRunResult(stack, plan, base, remote);
@@ -163,7 +163,7 @@ export class SyncCommand {
 
   // Everything the sync will do is decided here with read-only lookups, so
   // a dry run can report it without changing anything.
-  private plan(stack: Stack, base: string): SyncPlan {
+  private plan(stack: Stack, base: string, remote: string): SyncPlan {
     this.reporter.progress("Reading the previous stack state");
 
     const state = this.stateStore.read();
@@ -186,6 +186,8 @@ export class SyncCommand {
       change,
       current: this.github.pullRequestForBranch(change.remoteBranch),
     }));
+
+    assertNoMergedChanges(existing, `${remote}/${base}`);
 
     const omitted = this.omittedPullRequests(transition, stack.changes);
 
@@ -672,6 +674,28 @@ export class SyncCommand {
 
     throw cause;
   }
+}
+
+// A squash or rebase merge leaves the original commit in local history until
+// the branch is rebased. Syncing it would re-push the merged branch and keep
+// the merged changes in every PR above it.
+function assertNoMergedChanges(
+  existing: readonly ExistingPullRequest[],
+  remoteBase: string,
+) {
+  const merged = existing.filter(({ current }) => current?.state === "MERGED");
+
+  if (merged.length === 0) {
+    return;
+  }
+
+  const pullRequests = merged
+    .map(({ change, current }) => `#${current!.number} (${change.subject})`)
+    .join(", ");
+
+  throw new Error(
+    `${merged.length === 1 ? "Pull request" : "Pull requests"} ${pullRequests} ${merged.length === 1 ? "is" : "are"} already merged but still in the local stack. Rebase onto ${remoteBase} and run bstack again`,
+  );
 }
 
 function branchUpdates(changes: readonly StackChange[]) {
