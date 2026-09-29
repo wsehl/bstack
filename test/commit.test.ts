@@ -22,6 +22,13 @@ describe("commit identity", () => {
     });
   });
 
+  test("falls back to a placeholder subject for an empty message", () => {
+    expect(splitCommitMessage(addChangeId("", "change123"))).toEqual({
+      subject: "Untitled change",
+      body: "",
+    });
+  });
+
   test("rewrites only the parent and message of a raw commit", () => {
     const raw = [
       "tree aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
