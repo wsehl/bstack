@@ -30,6 +30,7 @@ export interface GitRepository {
   mergeBase(left: string, right: string): string;
   commitsSince(baseOid: string): Commit[];
   rewriteCommits(rewrites: readonly CommitRewrite[]): string[];
+  outdatedBranches(remote: string, branches: readonly BranchUpdate[]): string[];
   pushBranches(remote: string, branches: readonly BranchUpdate[]): PushResult;
   statePath(): string;
 }
@@ -169,6 +170,17 @@ export class GitCliRepository implements GitRepository {
     this.git(["update-ref", "HEAD", newHead, oldHead]);
 
     return rewrittenOids;
+  }
+
+  outdatedBranches(remote: string, branches: readonly BranchUpdate[]) {
+    const existing = this.remoteBranchOids(
+      remote,
+      branches.map((branch) => branch.name),
+    );
+
+    return branches
+      .filter((branch) => existing.get(branch.name) !== branch.oid)
+      .map((branch) => branch.name);
   }
 
   pushBranches(remote: string, branches: readonly BranchUpdate[]) {

@@ -50,7 +50,7 @@ const syncOptions = {
   },
   "dry-run": {
     type: "boolean",
-    description: "Inspect the stack without rewriting commits or pushing",
+    description: "Preview PR and stack changes without rewriting or pushing",
   },
 } satisfies OptionDefinitions;
 
