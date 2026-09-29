@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.7.0](https://github.com/wsehl/bstack/compare/v1.6.1...v1.7.0) (2026-09-29)
+
+
+### Features
+
+* **sync:** show planned pull request changes in dry run ([#40](https://github.com/wsehl/bstack/issues/40)) ([a96571e](https://github.com/wsehl/bstack/commit/a96571e1092704a6bbe32a2b4e5536de5e9b9bb9))
+
+
+### Bug Fixes
+
+* **commit:** append bstack-id to an existing trailer block ([#35](https://github.com/wsehl/bstack/issues/35)) ([7f19889](https://github.com/wsehl/bstack/commit/7f198896eba734d3b0d6a354f68422bcc8409443))
+* **commit:** reject SHA-256 signatures and non-UTF-8 messages ([#36](https://github.com/wsehl/bstack/issues/36)) ([e2994e0](https://github.com/wsehl/bstack/commit/e2994e04e1267bf06747b9465762f540c8fe3f70))
+* **commit:** use a placeholder title for empty commit messages ([#34](https://github.com/wsehl/bstack/issues/34)) ([ef80343](https://github.com/wsehl/bstack/commit/ef8034364cec9aad1eafd21527828901de56d1e9))
+* **process:** abbreviate long arguments in command errors ([#37](https://github.com/wsehl/bstack/issues/37)) ([cd84704](https://github.com/wsehl/bstack/commit/cd8470477192fb9261ef4e3c12569a1dfe6a7bc8))
+* **state:** share stack state across linked worktrees ([#38](https://github.com/wsehl/bstack/issues/38)) ([7df2b60](https://github.com/wsehl/bstack/commit/7df2b60803ccc9ddc9454d4d1eb968107c7d95b2))
+* **sync:** don't close another branch's pull requests by accident ([#42](https://github.com/wsehl/bstack/issues/42)) ([83266e3](https://github.com/wsehl/bstack/commit/83266e36ff380f7cb83f9277c7e7ec813c31835c))
+* **sync:** stop when a merged pull request is still in the stack ([#41](https://github.com/wsehl/bstack/issues/41)) ([4187502](https://github.com/wsehl/bstack/commit/418750233d4256aaa35848136a0e7a566147be68))
+* **upgrade:** refuse to guess when no global install is found ([#39](https://github.com/wsehl/bstack/issues/39)) ([867d88f](https://github.com/wsehl/bstack/commit/867d88f8da4f8a69ce75c832e0e4a073d90ebafd))
+
+
+### Styles
+
+* update formatting ([795f717](https://github.com/wsehl/bstack/commit/795f71746e7667f8cbb2c9a4c3567e92caedc437))
+
 ## [1.6.1](https://github.com/wsehl/bstack/compare/v1.6.0...v1.6.1) (2026-09-08)
 
 
