@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { UpgradeCommand } from "../src/commands/upgrade";
+import { installScriptUrl, UpgradeCommand } from "../src/commands/upgrade";
 import type { ProcessOptions, ProcessResult } from "../src/process-runner";
 import type { Reporter } from "../src/reporter";
 
@@ -26,23 +26,39 @@ class FakeReporter implements Reporter {
   }
 }
 
-function fakeRunner(responses: Record<string, ProcessResult>): FakeRunner {
-  return new FakeRunner(
-    (command) =>
-      responses[command.join(" ")] ?? { stdout: "", stderr: "", exitCode: 0 },
-  );
+// Answers every global dir probe the way a machine with all four package
+// managers would, and succeeds silently for anything else.
+function fakeRunner(responses: Record<string, ProcessResult> = {}): FakeRunner {
+  const globalDirs: Record<string, string> = {
+    "npm root -g": "/usr/local/lib/node_modules",
+    "pnpm root -g": "/home/user/.local/share/pnpm/global/v11",
+    "bun pm bin -g": "/home/user/.bun/bin",
+    "yarn global dir": "/home/user/.config/yarn/global",
+  };
+
+  return new FakeRunner((command) => {
+    const key = command.join(" ");
+    const globalDir = globalDirs[key];
+
+    return (
+      responses[key] ??
+      (globalDir
+        ? { stdout: `${globalDir}\n`, stderr: "", exitCode: 0 }
+        : { stdout: "", stderr: "", exitCode: 0 })
+    );
+  });
+}
+
+function script(...paths: string[]) {
+  return {
+    kind: "script",
+    paths,
+  } as const;
 }
 
 describe("upgrade", () => {
-  const neutralExecPath = "/usr/local/bin/node";
-
-  test("updates through npm when npm owns the global install", () => {
+  test("updates through npm when the script lives in npm's global dir", () => {
     const runner = fakeRunner({
-      "npm ls -g --depth=0": {
-        stdout: "├── bstack@1.5.3",
-        stderr: "",
-        exitCode: 0,
-      },
       "npm install -g bstack@latest": {
         stdout: "",
         stderr: "changed 2 packages in 2s",
@@ -52,13 +68,20 @@ describe("upgrade", () => {
 
     const reporter = new FakeReporter();
 
-    const result = new UpgradeCommand(runner, reporter, neutralExecPath).run();
+    const result = new UpgradeCommand(
+      runner,
+      reporter,
+      script(
+        "/usr/local/bin/bstack",
+        "/usr/local/lib/node_modules/bstack/dist/bstack.mjs",
+      ),
+    ).run();
 
-    expect(result.packageManager).toBe("npm");
+    expect(result.method).toBe("npm");
     expect(result.command).toEqual(["npm", "install", "-g", "bstack@latest"]);
     expect(result.output).toBe("changed 2 packages in 2s");
     expect(runner.calls.map((call) => call.command)).toEqual([
-      ["npm", "ls", "-g", "--depth=0"],
+      ["npm", "root", "-g"],
       ["npm", "install", "-g", "bstack@latest"],
     ]);
     expect(reporter.messages).toEqual([
@@ -66,127 +89,107 @@ describe("upgrade", () => {
     ]);
   });
 
-  test("prefers the package manager running bstack before its listing", () => {
-    const runner = fakeRunner({
-      "npm ls -g --depth=0": {
-        stdout: "├── bstack@1.5.3",
-        stderr: "",
-        exitCode: 0,
-      },
-      "pnpm ls -g --depth=0": {
-        stdout: "bstack 1.5.3",
-        stderr: "",
-        exitCode: 0,
-      },
-      "pnpm add -g bstack@latest": { stdout: "", stderr: "", exitCode: 0 },
-    });
+  test("updates through pnpm when its shim runs the script from its global dir", () => {
+    const runner = fakeRunner();
 
     const result = new UpgradeCommand(
       runner,
       new FakeReporter(),
-      "/home/user/Library/pnpm/nodejs/22.14.0/bin/node",
+      script(
+        "/home/user/.local/share/pnpm/global/v11/7f6f/node_modules/bstack/dist/bstack.mjs",
+        "/home/user/.local/share/pnpm/store/v11/links/bstack/1.7.0/node_modules/bstack/dist/bstack.mjs",
+      ),
     ).run();
 
-    expect(result.packageManager).toBe("pnpm");
+    expect(result.method).toBe("pnpm");
     expect(result.command).toEqual(["pnpm", "add", "-g", "bstack@latest"]);
   });
 
-  test("updates through bun when bun owns the global install", () => {
-    const runner = fakeRunner({
-      "bun pm ls -g": { stdout: "bstack@1.5.3", stderr: "", exitCode: 0 },
-      "bun add -g bstack@latest": {
-        stdout: "installed bstack@1.5.4",
-        stderr: "",
-        exitCode: 0,
-      },
-    });
-
+  test("updates through bun when the script is linked from bun's global bin", () => {
     const result = new UpgradeCommand(
-      runner,
+      fakeRunner(),
       new FakeReporter(),
-      "/home/user/.bun/bin/bun",
+      script(
+        "/home/user/.bun/bin/bstack",
+        "/home/user/.bun/install/global/node_modules/bstack/dist/bstack.mjs",
+      ),
     ).run();
 
-    expect(result.packageManager).toBe("bun");
+    expect(result.method).toBe("bun");
     expect(result.command).toEqual(["bun", "add", "-g", "bstack@latest"]);
   });
 
-  test("updates through yarn when yarn owns the global install", () => {
-    const runner = fakeRunner({
-      "yarn global list": {
-        stdout: 'info "bstack@1.5.3" has binaries',
-        stderr: "",
-        exitCode: 0,
-      },
-      "yarn global add bstack@latest": {
-        stdout: 'success Installed "bstack@1.5.4"',
-        stderr: "",
-        exitCode: 0,
-      },
-    });
-
+  test("updates through yarn when the script lives in yarn's global dir", () => {
     const result = new UpgradeCommand(
-      runner,
+      fakeRunner(),
       new FakeReporter(),
-      neutralExecPath,
+      script(
+        "/usr/local/bin/bstack",
+        "/home/user/.config/yarn/global/node_modules/bstack/dist/bstack.mjs",
+      ),
     ).run();
 
-    expect(result.packageManager).toBe("yarn");
+    expect(result.method).toBe("yarn");
     expect(result.command).toEqual(["yarn", "global", "add", "bstack@latest"]);
   });
 
-  test("refuses to install when no listing reports bstack", () => {
-    const runner = fakeRunner({});
-
-    expect(() =>
-      new UpgradeCommand(runner, new FakeReporter(), neutralExecPath).run(),
-    ).toThrow("Cannot find a global bstack installation");
-    expect(runner.calls.map((call) => call.command.join(" "))).toEqual([
-      "npm ls -g --depth=0",
-      "yarn global list",
-      "pnpm ls -g --depth=0",
-      "bun pm ls -g",
-    ]);
-  });
-
-  test("skips empty and failed listings until one reports bstack", () => {
+  test("ignores failed and empty global dir probes", () => {
     const runner = fakeRunner({
-      "pnpm ls -g --depth=0": {
-        stdout: "",
+      "npm root -g": { stdout: "", stderr: "", exitCode: 0 },
+      "pnpm root -g": {
+        stdout: "/home/user/.local/share/pnpm/global/v11",
         stderr: "command not found",
         exitCode: 127,
       },
-      "bun pm ls -g": { stdout: "bstack@1.5.3", stderr: "", exitCode: 0 },
-      "bun add -g bstack@latest": {
-        stdout: "installed bstack@1.5.4",
-        stderr: "",
-        exitCode: 0,
-      },
     });
 
-    const result = new UpgradeCommand(
-      runner,
-      new FakeReporter(),
-      neutralExecPath,
-    ).run();
+    expect(() =>
+      new UpgradeCommand(
+        runner,
+        new FakeReporter(),
+        script(
+          "/home/user/.local/share/pnpm/global/v11/7f6f/node_modules/bstack/dist/bstack.mjs",
+        ),
+      ).run(),
+    ).toThrow("Cannot tell which package manager installed bstack");
+  });
 
-    expect(result.packageManager).toBe("bun");
+  test("refuses to guess when no global dir holds the script", () => {
+    const runner = fakeRunner();
+
+    expect(() =>
+      new UpgradeCommand(
+        runner,
+        new FakeReporter(),
+        script("/home/user/.npm/_npx/1a2b/node_modules/bstack/dist/bstack.mjs"),
+      ).run(),
+    ).toThrow("Cannot tell which package manager installed bstack");
     expect(runner.calls.map((call) => call.command.join(" "))).toEqual([
-      "npm ls -g --depth=0",
-      "yarn global list",
-      "pnpm ls -g --depth=0",
-      "bun pm ls -g",
-      "bun add -g bstack@latest",
+      "npm root -g",
+      "pnpm root -g",
+      "bun pm bin -g",
+      "yarn global dir",
     ]);
+  });
+
+  test("reruns the installer into the binary's directory", () => {
+    const runner = fakeRunner();
+
+    const result = new UpgradeCommand(runner, new FakeReporter(), {
+      kind: "binary",
+      path: "/home/user/.local/bin/bstack",
+    }).run();
+
+    expect(result.method).toBe("binary");
+    expect(runner.calls).toHaveLength(1);
+    expect(runner.calls[0]?.command).toContain(installScriptUrl);
+    expect(runner.calls[0]?.options.env).toEqual({
+      BSTACK_INSTALL_DIR: "/home/user/.local/bin",
+    });
   });
 
   test("combines trimmed stdout and stderr of the install", () => {
     const runner = fakeRunner({
-      "npm ls -g --depth=0": {
-        stdout: "├── bstack@1.5.3",
-        stderr: "",
-        exitCode: 0,
-      },
       "npm install -g bstack@latest": {
         stdout: "added 1 package\n",
         stderr: "1 warning\n",
@@ -197,7 +200,7 @@ describe("upgrade", () => {
     const result = new UpgradeCommand(
       runner,
       new FakeReporter(),
-      neutralExecPath,
+      script("/usr/local/lib/node_modules/bstack/dist/bstack.mjs"),
     ).run();
 
     expect(result.output).toBe("added 1 package\n1 warning");
