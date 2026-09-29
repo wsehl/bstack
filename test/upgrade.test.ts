@@ -135,23 +135,18 @@ describe("upgrade", () => {
     expect(result.command).toEqual(["yarn", "global", "add", "bstack@latest"]);
   });
 
-  test("falls back to npm when no listing reports bstack", () => {
-    const runner = fakeRunner({
-      "npm install -g bstack@latest": {
-        stdout: "added 1 package",
-        stderr: "",
-        exitCode: 0,
-      },
-    });
+  test("refuses to install when no listing reports bstack", () => {
+    const runner = fakeRunner({});
 
-    const result = new UpgradeCommand(
-      runner,
-      new FakeReporter(),
-      neutralExecPath,
-    ).run();
-
-    expect(result.packageManager).toBe("npm");
-    expect(result.command).toEqual(["npm", "install", "-g", "bstack@latest"]);
+    expect(() =>
+      new UpgradeCommand(runner, new FakeReporter(), neutralExecPath).run(),
+    ).toThrow("Cannot find a global bstack installation");
+    expect(runner.calls.map((call) => call.command.join(" "))).toEqual([
+      "npm ls -g --depth=0",
+      "yarn global list",
+      "pnpm ls -g --depth=0",
+      "bun pm ls -g",
+    ]);
   });
 
   test("skips empty and failed listings until one reports bstack", () => {
