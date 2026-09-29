@@ -70,7 +70,7 @@ function main() {
 
     const result = sync.run(request.options);
 
-    console.log(formatSyncResult(result, request.options.dryRun));
+    console.log(formatSyncResult(result));
   }
 }
 

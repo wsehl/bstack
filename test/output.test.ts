@@ -44,8 +44,7 @@ describe("sync output", () => {
       },
     ];
 
-    expect(formatSyncResult(result(changes, outcomes), false))
-      .toMatchInlineSnapshot(`
+    expect(formatSyncResult(result(changes, outcomes))).toMatchInlineSnapshot(`
       "Synced 3-commit stack against main:
         created   #11  feat(compiler): implement constant folding for unary minus (#33140) https://example.test/pull/11
         updated   #12  fix(devtools): clear highlight when mouse leaves DevTools panel (#36177) https://example.test/pull/12
@@ -54,23 +53,53 @@ describe("sync output", () => {
     `);
   });
 
-  test("shows local changes without outcomes during dry run", () => {
+  test("shows the planned pull request and stack actions during dry run", () => {
     const preview = change(
       "abcdef012345",
       "docs: remove stale parentType param from validateChildKeys JSDoc (#36928)",
       "preview",
     );
 
-    expect(formatSyncResult(result([preview], []), true))
-      .toMatchInlineSnapshot(`
-      "Would sync 1 change against main:
-        abcdef01  docs: remove stale parentType param from validateChildKeys JSDoc (#36928)"
+    const edited = change("222222222222", "fix: tighten parsing", "edited");
+    const kept = change("333333333333", "test: cover parsing", "kept");
+
+    expect(
+      formatSyncResult({
+        dryRun: true,
+        base: "main",
+        remote: "origin",
+        rewritten: false,
+        changes: [preview, edited, kept],
+        outcomes: [
+          { outcome: "create", change: preview },
+          {
+            outcome: "update",
+            change: edited,
+            pullRequest: pullRequest(12, edited.subject),
+          },
+          {
+            outcome: "unchanged",
+            change: kept,
+            pullRequest: pullRequest(13, kept.subject),
+          },
+          { outcome: "close", pullRequest: pullRequest(14, "chore: drop me") },
+        ],
+        stackAction: "rebuild stack #7 to update pull requests",
+      }),
+    ).toMatchInlineSnapshot(`
+      "Would sync 3 changes against main:
+        create    abcdef01  docs: remove stale parentType param from validateChildKeys JSDoc (#36928)
+        update    #12  fix: tighten parsing https://example.test/pull/12
+        unchanged #13  test: cover parsing https://example.test/pull/13
+        close     #14  chore: drop me https://example.test/pull/14
+      Would rebuild stack #7 to update pull requests"
     `);
   });
 });
 
 function result(changes: StackChange[], outcomes: SyncOutcome[]): SyncResult {
   return {
+    dryRun: false,
     base: "main",
     remote: "origin",
     rewritten: false,

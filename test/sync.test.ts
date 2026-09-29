@@ -32,7 +32,7 @@ describe("stack sync", () => {
     expect(github.mutations).toEqual([]);
   });
 
-  test("dry run does not rewrite, push, read state, or change GitHub", () => {
+  test("dry run plans without rewriting, pushing, saving, or changing GitHub", () => {
     const repository = new SyncRepository([commit("one", false)]);
     const github = new SyncGitHub();
     const stateStore = new RecordingStateStore(emptyState);
@@ -46,10 +46,54 @@ describe("stack sync", () => {
 
     expect(result.rewritten).toBe(true);
     expect(result.changes).toHaveLength(1);
-    expect(result.outcomes).toEqual([]);
+    expect(result.outcomes).toEqual([
+      expect.objectContaining({ outcome: "update" }),
+    ]);
     expect(repository.rewriteCalls).toEqual([]);
     expect(repository.pushCalls).toEqual([]);
-    expect(stateStore.readCount).toBe(0);
+    expect(stateStore.writes).toEqual([]);
+    expect(github.mutations).toEqual([]);
+  });
+
+  test("dry run reports pull requests to update, keep, and close", () => {
+    const repository = new SyncRepository([commit("one"), commit("two")]);
+    repository.outdated = ["bstack/test-user/two"];
+    const github = new SyncGitHub();
+
+    const stateStore = new RecordingStateStore({
+      schemaVersion: 1,
+      stacks: [
+        {
+          remote: "origin",
+          base: "main",
+          stackNumber: 7,
+          changes: ["one", "dropped", "two"].map((id, index) => ({
+            id,
+            remoteBranch: `bstack/test-user/${id}`,
+            pullRequest: [1, 5, 2][index]!,
+            url: `https://example.test/pull/${[1, 5, 2][index]!}`,
+          })),
+        },
+      ],
+    });
+
+    const result = command(repository, github, stateStore).run({
+      base: "main",
+      remote: "origin",
+      draft: false,
+      dryRun: true,
+    });
+
+    expect(result).toMatchObject({
+      dryRun: true,
+      stackAction: "rebuild stack #7 to remove pull requests",
+      outcomes: [
+        { outcome: "unchanged", pullRequest: { number: 1 } },
+        { outcome: "update", pullRequest: { number: 2 } },
+        { outcome: "close", pullRequest: { number: 5 } },
+      ],
+    });
+    expect(repository.pushCalls).toEqual([]);
     expect(stateStore.writes).toEqual([]);
     expect(github.mutations).toEqual([]);
   });
@@ -281,6 +325,7 @@ class SyncRepository {
     branches: readonly BranchUpdate[];
   }> = [];
   failPushWith: Error | undefined;
+  outdated: string[] | undefined;
 
   constructor(private readonly commits: Commit[]) {}
 
@@ -310,6 +355,10 @@ class SyncRepository {
     this.rewriteCalls.push([...rewrites]);
 
     return rewrites.map((rewrite) => rewrite.commit.oid);
+  }
+
+  outdatedBranches(_remote: string, branches: readonly BranchUpdate[]) {
+    return this.outdated ?? branches.map((branch) => branch.name);
   }
 
   pushBranches(remote: string, branches: readonly BranchUpdate[]) {

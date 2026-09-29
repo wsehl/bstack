@@ -53,7 +53,7 @@ bstack
 + ○ feat(ui): add login page        ──► #103  created
 ```
 
-bstack pushes dedicated remote branches and opens one PR per commit. Add `--dry-run` to preview first.
+bstack pushes dedicated remote branches and opens one PR per commit. Add `--dry-run` to preview which PRs would be created, updated, or closed and how the stack would change.
 
 ### Add a commit
 
@@ -191,7 +191,7 @@ bstack upgrade
 | `--base <branch>` | Stack base branch (default: repo default branch)                  |
 | `--remote <name>` | Git remote to push to (default: `remote.pushDefault` or `origin`) |
 | `--draft`         | Create PRs as drafts instead of ready-for-review                  |
-| `--dry-run`       | Preview what bstack would do without pushing anything             |
+| `--dry-run`       | Preview PR and stack changes without rewriting or pushing         |
 | `--verbose`       | Print every git/gh command before it runs                         |
 | `--same-base`     | Refuse checkout if it would change the current merge base         |
 

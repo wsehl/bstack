@@ -24,8 +24,14 @@ export type SyncResult = {
   remote: string;
   rewritten: boolean;
   changes: Array<StackChange & { pullRequest?: PullRequest }>;
-  outcomes: SyncOutcome[];
-};
+} & (
+  | { dryRun: false; outcomes: SyncOutcome[] }
+  | {
+      dryRun: true;
+      outcomes: PlannedOutcome[];
+      stackAction: string | undefined;
+    }
+);
 
 export type SyncOutcome =
   | {
@@ -38,10 +44,32 @@ export type SyncOutcome =
       pullRequest: PullRequest;
     };
 
+export type PlannedOutcome =
+  | { outcome: "create"; change: StackChange }
+  | {
+      outcome: "update" | "unchanged";
+      change: StackChange;
+      pullRequest: PullRequest;
+    }
+  | { outcome: "close"; pullRequest: PullRequest };
+
 type PreparedStack = {
   base: string;
   remote: string;
   stack: Stack;
+};
+
+type ExistingPullRequest = {
+  change: StackChange;
+  current: PullRequest | undefined;
+};
+
+type SyncPlan = {
+  state: RepositoryState;
+  previousEntry: StoredStackEntry | undefined;
+  transition: StackTransition;
+  existing: ExistingPullRequest[];
+  omitted: PullRequest[];
 };
 
 type MatchedChange = {
@@ -68,23 +96,13 @@ export class SyncCommand {
 
   run(options: SyncOptions): SyncResult {
     const { base, remote, stack } = this.prepareStack(options);
-    const { changes, rewritten } = stack;
+    const plan = this.plan(stack, base);
 
     if (options.dryRun) {
-      this.reporter.progress(
-        "Dry run complete; no commits or remote branches were changed",
-      );
-
-      return {
-        base,
-        remote,
-        rewritten,
-        changes: [...changes],
-        outcomes: [],
-      };
+      return this.dryRunResult(stack, plan, base, remote);
     }
 
-    return this.synchronize(stack, options, base, remote);
+    return this.synchronize(stack, plan, options, base, remote);
   }
 
   private prepareStack(options: SyncOptions): PreparedStack {
@@ -143,14 +161,9 @@ export class SyncCommand {
     };
   }
 
-  private synchronize(
-    stack: Stack,
-    options: SyncOptions,
-    base: string,
-    remote: string,
-  ): SyncResult {
-    const { changes, rewritten } = stack;
-
+  // Everything the sync will do is decided here with read-only lookups, so
+  // a dry run can report it without changing anything.
+  private plan(stack: Stack, base: string): SyncPlan {
     this.reporter.progress("Reading the previous stack state");
 
     const state = this.stateStore.read();
@@ -167,9 +180,97 @@ export class SyncCommand {
       },
     });
 
+    this.reporter.progress("Looking up existing pull requests");
+
+    const existing = stack.changes.map((change) => ({
+      change,
+      current: this.github.pullRequestForBranch(change.remoteBranch),
+    }));
+
+    const omitted = this.omittedPullRequests(transition, stack.changes);
+
+    return { state, previousEntry, transition, existing, omitted };
+  }
+
+  private dryRunResult(
+    stack: Stack,
+    plan: SyncPlan,
+    base: string,
+    remote: string,
+  ): SyncResult {
+    const { changes, rewritten } = stack;
+
+    const outdatedBranches = new Set(
+      this.repository.outdatedBranches(remote, branchUpdates(changes)),
+    );
+
+    const context: OutcomeContext = {
+      previous: plan.transition.previous,
+      base,
+      pushedBranches: outdatedBranches,
+    };
+
+    const changeOutcomes = plan.existing.map(
+      ({ change, current }, index): PlannedOutcome => {
+        if (!current) {
+          return { outcome: "create", change };
+        }
+
+        const outcome = changeOutcome(
+          change,
+          current,
+          changes[index - 1]?.remoteBranch ?? base,
+          context,
+        );
+
+        return {
+          outcome: outcome === "updated" ? "update" : "unchanged",
+          change,
+          pullRequest: current,
+        };
+      },
+    );
+
+    const closeOutcomes = plan.omitted.map((pullRequest): PlannedOutcome => ({
+      outcome: "close",
+      pullRequest,
+    }));
+
+    this.reporter.progress(
+      "Dry run complete; no commits, branches, or pull requests were changed",
+    );
+
+    return {
+      dryRun: true,
+      base,
+      remote,
+      rewritten,
+      changes: plan.existing.map(({ change, current }) =>
+        current ? { ...change, pullRequest: current } : change,
+      ),
+      outcomes: [...changeOutcomes, ...closeOutcomes],
+      stackAction: describeStackAction(plan.transition, changes.length, base),
+    };
+  }
+
+  private synchronize(
+    stack: Stack,
+    plan: SyncPlan,
+    options: SyncOptions,
+    base: string,
+    remote: string,
+  ): SyncResult {
+    const { changes, rewritten } = stack;
+    const { state, previousEntry, transition } = plan;
+
     this.prepareTransition(transition, base);
     const pushedBranches = this.pushBranches(remote, changes, transition);
-    const matchedChanges = this.matchPullRequests(changes, base, options.draft);
+
+    const matchedChanges = this.createMissingPullRequests(
+      plan.existing,
+      base,
+      options.draft,
+    );
 
     this.applyTransition(
       transition,
@@ -179,10 +280,7 @@ export class SyncCommand {
       options.draft,
     );
 
-    const omittedPullRequests = this.closeOmittedPullRequests(
-      transition,
-      changes,
-    );
+    this.closeOmittedPullRequests(plan.omitted);
 
     this.updatePullRequestMetadata(matchedChanges);
     this.saveStack(
@@ -196,13 +294,14 @@ export class SyncCommand {
 
     const synchronized = synchronizeChanges(matchedChanges);
 
-    const outcomes = buildOutcomes(matchedChanges, omittedPullRequests, {
+    const outcomes = buildOutcomes(matchedChanges, plan.omitted, {
       previous: transition.previous,
       base,
       pushedBranches,
     });
 
     return {
+      dryRun: false,
       base,
       remote,
       rewritten,
@@ -219,10 +318,7 @@ export class SyncCommand {
     try {
       const pushResult = this.repository.pushBranches(
         remote,
-        changes.map((change) => ({
-          name: change.remoteBranch,
-          oid: change.oid,
-        })),
+        branchUpdates(changes),
       );
 
       reportPushResult(this.reporter, pushResult);
@@ -237,21 +333,14 @@ export class SyncCommand {
     }
   }
 
-  private matchPullRequests(
-    changes: readonly StackChange[],
+  private createMissingPullRequests(
+    existing: readonly ExistingPullRequest[],
     base: string,
     draft: boolean,
   ): MatchedChange[] {
-    this.reporter.progress("Looking up existing pull requests");
-
-    const candidates = changes.map((change) => ({
-      change,
-      current: this.github.pullRequestForBranch(change.remoteBranch),
-    }));
-
     const matchedChanges: MatchedChange[] = [];
 
-    for (const { change, current } of candidates) {
+    for (const { change, current } of existing) {
       const pullRequestBase =
         matchedChanges.at(-1)?.change.remoteBranch ?? base;
 
@@ -274,13 +363,10 @@ export class SyncCommand {
   }
 
   private closeOmittedPullRequests(
-    transition: StackTransition,
-    changes: readonly StackChange[],
-  ): PullRequest[] {
-    const omittedPullRequests = this.omittedPullRequests(transition, changes);
-
+    omittedPullRequests: readonly PullRequest[],
+  ) {
     if (omittedPullRequests.length === 0) {
-      return omittedPullRequests;
+      return;
     }
 
     this.reporter.progress(
@@ -290,8 +376,6 @@ export class SyncCommand {
     for (const pullRequest of omittedPullRequests) {
       this.github.closePullRequest(pullRequest);
     }
-
-    return omittedPullRequests;
   }
 
   private omittedPullRequests(
@@ -503,13 +587,8 @@ export class SyncCommand {
     remote: string,
     draft: boolean,
   ) {
-    const reason =
-      transition.action === "change-base"
-        ? `against ${base}`
-        : `to ${transition.action} pull requests`;
-
     this.reporter.progress(
-      `Rebuilding stack #${transition.stackNumber} ${reason}`,
+      `Rebuilding stack #${transition.stackNumber} ${rebuildReason(transition, base)}`,
     );
 
     if (transition.action !== "reorder") {
@@ -595,6 +674,54 @@ export class SyncCommand {
   }
 }
 
+function branchUpdates(changes: readonly StackChange[]) {
+  return changes.map((change) => ({
+    name: change.remoteBranch,
+    oid: change.oid,
+  }));
+}
+
+function rebuildReason(
+  transition: Extract<StackTransition, { kind: "rebuild" }>,
+  base: string,
+): string {
+  return transition.action === "change-base"
+    ? `against ${base}`
+    : `to ${transition.action} pull requests`;
+}
+
+// Mirrors applyTransition, which leaves a single pull request unstacked.
+function describeStackAction(
+  transition: StackTransition,
+  changeCount: number,
+  base: string,
+): string | undefined {
+  switch (transition.kind) {
+    case "retarget":
+      return `change the pull request base to ${base}`;
+    case "partial":
+      return "update this down-stack prefix and keep higher pull requests";
+    case "collapse":
+      return `remove the omitted pull requests from stack #${transition.stackNumber}`;
+    default:
+  }
+
+  if (changeCount === 1) {
+    return undefined;
+  }
+
+  switch (transition.kind) {
+    case "full":
+      return `link ${changeCount} pull requests as a native GitHub stack`;
+    case "rebuild":
+      return `rebuild stack #${transition.stackNumber} ${rebuildReason(transition, base)}`;
+    case "append":
+      return `append ${transition.branches.length} pull request${transition.branches.length === 1 ? "" : "s"} to stack #${transition.stackNumber}`;
+    default:
+      return undefined;
+  }
+}
+
 function isReorder(transition: StackTransition): transition is Extract<
   StackTransition,
   { kind: "rebuild" }
@@ -661,10 +788,17 @@ function buildOutcomes(
   context: OutcomeContext,
 ): SyncOutcome[] {
   const synchronizedOutcomes = matchedChanges.map(
-    (match, index): SyncOutcome => ({
-      outcome: changeOutcome(match, index, matchedChanges, context),
-      change: match.change,
-      pullRequest: match.pullRequest,
+    ({ change, pullRequest, created }, index): SyncOutcome => ({
+      outcome: created
+        ? "created"
+        : changeOutcome(
+            change,
+            pullRequest,
+            matchedChanges[index - 1]?.change.remoteBranch ?? context.base,
+            context,
+          ),
+      change,
+      pullRequest,
     }),
   );
 
@@ -679,20 +813,12 @@ function buildOutcomes(
 }
 
 function changeOutcome(
-  match: MatchedChange,
-  index: number,
-  matchedChanges: readonly MatchedChange[],
+  change: StackChange,
+  pullRequest: PullRequest,
+  currentBase: string,
   context: OutcomeContext,
-): "created" | "updated" | "unchanged" {
-  if (match.created) {
-    return "created";
-  }
-
-  const { change, pullRequest } = match;
+): "updated" | "unchanged" {
   const previousBase = previousBaseFor(change, context.previous);
-
-  const currentBase =
-    matchedChanges[index - 1]?.change.remoteBranch ?? context.base;
 
   const metadataChanged =
     pullRequest.title !== change.subject || pullRequest.body !== change.body;
@@ -762,22 +888,14 @@ function writeUpdatedState(
   });
 }
 
-export function formatSyncResult(result: SyncResult, dryRun: boolean): string {
-  const changeCount = `${result.changes.length} change${result.changes.length === 1 ? "" : "s"}`;
+export function formatSyncResult(result: SyncResult): string {
+  if (result.dryRun) {
+    return formatPlannedSync(result);
+  }
 
   const lines = [
-    dryRun
-      ? `Would sync ${changeCount} against ${result.base}:`
-      : `Synced ${result.changes.length}-commit stack against ${result.base}:`,
+    `Synced ${result.changes.length}-commit stack against ${result.base}:`,
   ];
-
-  if (dryRun) {
-    for (const change of result.changes) {
-      lines.push(`  ${change.oid.slice(0, 8)}  ${change.subject}`);
-    }
-
-    return lines.join("\n");
-  }
 
   for (const outcome of result.outcomes) {
     if (outcome.outcome === "closed") {
@@ -793,6 +911,39 @@ export function formatSyncResult(result: SyncResult, dryRun: boolean): string {
     lines.push(
       `  ${outcome.outcome.padEnd(9)} #${outcome.pullRequest.number}  ${outcome.change.subject} ${outcome.pullRequest.url}`,
     );
+  }
+
+  return lines.join("\n");
+}
+
+function formatPlannedSync(
+  result: Extract<SyncResult, { dryRun: true }>,
+): string {
+  const changeCount = `${result.changes.length} change${result.changes.length === 1 ? "" : "s"}`;
+  const lines = [`Would sync ${changeCount} against ${result.base}:`];
+
+  for (const outcome of result.outcomes) {
+    const label = outcome.outcome.padEnd(9);
+
+    if (outcome.outcome === "create") {
+      lines.push(
+        `  ${label} ${outcome.change.oid.slice(0, 8)}  ${outcome.change.subject}`,
+      );
+    } else if (outcome.outcome === "close") {
+      const { pullRequest } = outcome;
+
+      lines.push(
+        `  ${label} #${pullRequest.number}  ${pullRequest.title} ${pullRequest.url}`,
+      );
+    } else {
+      lines.push(
+        `  ${label} #${outcome.pullRequest.number}  ${outcome.change.subject} ${outcome.pullRequest.url}`,
+      );
+    }
+  }
+
+  if (result.stackAction) {
+    lines.push(`Would ${result.stackAction}`);
   }
 
   return lines.join("\n");
