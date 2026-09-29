@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 
-import { formatCommand, NodeProcessRunner } from "../src/process-runner";
+import {
+  formatCommand,
+  NodeProcessRunner,
+  ProcessError,
+} from "../src/process-runner";
 
 describe("command logging", () => {
   test("reports each command before execution", () => {
@@ -21,6 +25,17 @@ describe("command logging", () => {
   test("quotes arguments that contain spaces", () => {
     expect(formatCommand(["gh", "pr", "edit", "--title", "Add API"])).toBe(
       "gh pr edit --title 'Add API'",
+    );
+  });
+
+  test("abbreviates long and multi-line arguments in failures", () => {
+    const error = new ProcessError(
+      ["gh", "pr", "edit", "--body", `First line\n${"x".repeat(500)}`],
+      { stdout: "", stderr: "HTTP 422", exitCode: 1 },
+    );
+
+    expect(error.message).toBe(
+      "gh pr edit --body 'First line…' failed with exit code 1\nHTTP 422",
     );
   });
 });
