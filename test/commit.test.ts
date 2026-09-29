@@ -22,6 +22,30 @@ describe("commit identity", () => {
     });
   });
 
+  test("joins an existing trailer block so git still recognizes it", () => {
+    const message = addChangeId(
+      "Add the API\n\nExplain the endpoint.\n\nCo-authored-by: Ada <ada@example.com>\n",
+      "change123",
+    );
+
+    expect(message).toBe(
+      "Add the API\n\nExplain the endpoint.\n\nCo-authored-by: Ada <ada@example.com>\nbstack-id: change123\n",
+    );
+    expect(splitCommitMessage(message)).toEqual({
+      subject: "Add the API",
+      body: "Explain the endpoint.\n\nCo-authored-by: Ada <ada@example.com>",
+    });
+  });
+
+  test("starts a trailer block after prose and after a lone subject", () => {
+    expect(addChangeId("fix: handle errors\n", "one")).toBe(
+      "fix: handle errors\n\nbstack-id: one\n",
+    );
+    expect(
+      addChangeId("Subject\n\nNote: this is prose\nnot a trailer\n", "two"),
+    ).toBe("Subject\n\nNote: this is prose\nnot a trailer\n\nbstack-id: two\n");
+  });
+
   test("falls back to a placeholder subject for an empty message", () => {
     expect(splitCommitMessage(addChangeId("", "change123"))).toEqual({
       subject: "Untitled change",
