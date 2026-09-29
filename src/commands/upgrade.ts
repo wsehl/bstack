@@ -93,7 +93,9 @@ export class UpgradeCommand {
       }
     }
 
-    return "npm";
+    throw new Error(
+      "Cannot find a global bstack installation from npm, yarn, pnpm, or bun. If you run bstack through npx or pnpm dlx, use bstack@latest instead; otherwise upgrade it with the tool that installed it",
+    );
   }
 }
 
