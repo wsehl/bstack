@@ -149,6 +149,8 @@ bstack
 
 The dropped PR closes. The PRs above it are rebased onto their new parents.
 
+bstack remembers which branch each stack was synced from. If the commits match a stack synced from a different branch, for example after cherry-picking a commit into a new branch, bstack refuses to close that stack's other PRs unless you pass `--close-omitted`.
+
 ### After a PR merges
 
 When a lower PR merges, rebase your branch onto the updated base and sync:
@@ -192,6 +194,7 @@ bstack upgrade
 | `--remote <name>` | Git remote to push to (default: `remote.pushDefault` or `origin`) |
 | `--draft`         | Create PRs as drafts instead of ready-for-review                  |
 | `--dry-run`       | Preview PR and stack changes without rewriting or pushing         |
+| `--close-omitted` | Allow closing PRs of a stack last synced from another branch      |
 | `--verbose`       | Print every git/gh command before it runs                         |
 | `--same-base`     | Refuse checkout if it would change the current merge base         |
 

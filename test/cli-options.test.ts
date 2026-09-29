@@ -12,6 +12,7 @@ describe("CLI parsing", () => {
         remote: undefined,
         draft: false,
         dryRun: false,
+        closeOmitted: false,
       },
     });
   });
@@ -38,7 +39,13 @@ describe("CLI parsing", () => {
     expect(parseCli(argv)).toEqual({
       command: "sync",
       verbose: true,
-      options: { base: "main", remote: "upstream", draft: true, dryRun: true },
+      options: {
+        base: "main",
+        remote: "upstream",
+        draft: true,
+        dryRun: true,
+        closeOmitted: false,
+      },
     });
   });
 

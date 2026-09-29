@@ -17,6 +17,7 @@ export type SyncOptions = {
   remote: string | undefined;
   draft: boolean;
   dryRun: boolean;
+  closeOmitted: boolean;
 };
 
 export type SyncResult = {
@@ -65,6 +66,7 @@ type ExistingPullRequest = {
 };
 
 type SyncPlan = {
+  currentBranch: string | undefined;
   state: RepositoryState;
   previousEntry: StoredStackEntry | undefined;
   transition: StackTransition;
@@ -96,7 +98,7 @@ export class SyncCommand {
 
   run(options: SyncOptions): SyncResult {
     const { base, remote, stack } = this.prepareStack(options);
-    const plan = this.plan(stack, base, remote);
+    const plan = this.plan(stack, options, base, remote);
 
     if (options.dryRun) {
       return this.dryRunResult(stack, plan, base, remote);
@@ -163,15 +165,21 @@ export class SyncCommand {
 
   // Everything the sync will do is decided here with read-only lookups, so
   // a dry run can report it without changing anything.
-  private plan(stack: Stack, base: string, remote: string): SyncPlan {
+  private plan(
+    stack: Stack,
+    options: SyncOptions,
+    base: string,
+    remote: string,
+  ): SyncPlan {
     this.reporter.progress("Reading the previous stack state");
 
+    const currentBranch = this.repository.currentBranch();
     const state = this.stateStore.read();
     const previousEntry = stack.findPrevious(state);
 
     const transition = stack.transitionFrom(previousEntry?.stack, {
       base,
-      preserveHigherChanges: this.repository.currentBranch() === undefined,
+      preserveHigherChanges: currentBranch === undefined,
       lookups: {
         pullRequestState: (pullRequest) =>
           this.github.pullRequest(pullRequest).state,
@@ -191,7 +199,22 @@ export class SyncCommand {
 
     const omitted = this.omittedPullRequests(transition, stack.changes);
 
-    return { state, previousEntry, transition, existing, omitted };
+    if (!options.closeOmitted) {
+      assertSameBranchBeforeClosing(
+        omitted,
+        previousEntry?.stack.branch,
+        currentBranch,
+      );
+    }
+
+    return {
+      currentBranch,
+      state,
+      previousEntry,
+      transition,
+      existing,
+      omitted,
+    };
   }
 
   private dryRunResult(
@@ -263,7 +286,7 @@ export class SyncCommand {
     remote: string,
   ): SyncResult {
     const { changes, rewritten } = stack;
-    const { state, previousEntry, transition } = plan;
+    const { transition } = plan;
 
     this.prepareTransition(transition, base);
     const pushedBranches = this.pushBranches(remote, changes, transition);
@@ -285,14 +308,7 @@ export class SyncCommand {
     this.closeOmittedPullRequests(plan.omitted);
 
     this.updatePullRequestMetadata(matchedChanges);
-    this.saveStack(
-      state,
-      previousEntry,
-      transition,
-      matchedChanges,
-      base,
-      remote,
-    );
+    this.saveStack(plan, matchedChanges, base, remote);
 
     const synchronized = synchronizeChanges(matchedChanges);
 
@@ -408,9 +424,7 @@ export class SyncCommand {
   }
 
   private saveStack(
-    state: RepositoryState,
-    previousEntry: StoredStackEntry | undefined,
-    transition: StackTransition,
+    { currentBranch, state, previousEntry, transition }: SyncPlan,
     matchedChanges: readonly MatchedChange[],
     base: string,
     remote: string,
@@ -431,6 +445,13 @@ export class SyncCommand {
       base,
       changes: storedChanges,
     };
+
+    // A detached checkout keeps the branch the stack was last synced from.
+    const branch = currentBranch ?? previousEntry?.stack.branch;
+
+    if (branch !== undefined) {
+      updatedStack.branch = branch;
+    }
 
     const stackNumber = this.updatedStackNumber(transition, matchedChanges);
 
@@ -695,6 +716,32 @@ function assertNoMergedChanges(
 
   throw new Error(
     `${merged.length === 1 ? "Pull request" : "Pull requests"} ${pullRequests} ${merged.length === 1 ? "is" : "are"} already merged but still in the local stack. Rebase onto ${remoteBase} and run bstack again`,
+  );
+}
+
+// Commits keep their bstack-id when cherry-picked, and a new branch cut from
+// the middle of a stack shares its lower commits. Either way the commits match
+// a stack synced from another branch, whose remaining PRs would look dropped.
+function assertSameBranchBeforeClosing(
+  omitted: readonly PullRequest[],
+  previousBranch: string | undefined,
+  currentBranch: string | undefined,
+) {
+  if (
+    omitted.length === 0 ||
+    previousBranch === undefined ||
+    currentBranch === undefined ||
+    previousBranch === currentBranch
+  ) {
+    return;
+  }
+
+  const pullRequests = omitted
+    .map((pullRequest) => `#${pullRequest.number}`)
+    .join(", ");
+
+  throw new Error(
+    `These commits belong to a stack last synced from ${previousBranch}, but HEAD is on ${currentBranch}. Syncing would close ${pullRequests}. Switch back to ${previousBranch}, or pass --close-omitted if you meant to drop them`,
   );
 }
 

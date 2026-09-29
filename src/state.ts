@@ -17,6 +17,7 @@ const storedChangeSchema = v.object({
 const storedStackSchema = v.object({
   remote: v.string(),
   base: v.string(),
+  branch: v.optional(v.string()),
   stackNumber: v.optional(v.number()),
   changes: v.array(storedChangeSchema),
 });
@@ -47,6 +48,10 @@ export class FileStateStore implements StateStore {
           base: stack.base,
           changes: stack.changes,
         };
+
+        if (stack.branch !== undefined) {
+          stored.branch = stack.branch;
+        }
 
         if (stack.stackNumber !== undefined) {
           stored.stackNumber = stack.stackNumber;

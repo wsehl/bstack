@@ -34,6 +34,7 @@ export type StoredChange = {
 export type StoredStack = {
   remote: string;
   base: string;
+  branch?: string;
   stackNumber?: number;
   changes: StoredChange[];
 };
