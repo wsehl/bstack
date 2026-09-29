@@ -106,8 +106,10 @@ export function splitCommitMessage(message: string): CommitMessage {
     .join("\n")
     .trim();
 
-  const [subject = "Untitled change", ...bodyLines] =
-    withoutIdentity.split("\n");
+  const [subject = "", ...bodyLines] = withoutIdentity.split("\n");
 
-  return { subject, body: bodyLines.join("\n").trim() };
+  return {
+    subject: subject.trim() || "Untitled change",
+    body: bodyLines.join("\n").trim(),
+  };
 }
