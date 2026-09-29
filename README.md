@@ -2,7 +2,7 @@
 
 [![Open on npmx.dev](https://npmx.dev/api/registry/badge/version/bstack)](https://npmx.dev/package/bstack)
 
-Turn local commits into a GitHub stack of pull requests. Each commit becomes its own PR, stacked on top of the previous one. Reviewers see small, focused diffs. You keep working without waiting for merges.
+Turn local commits into a native GitHub stack of pull requests. Each commit becomes its own PR, based on the one before it, so reviewers see small, focused diffs while you keep working.
 
 ```
   feat/user-auth
@@ -13,30 +13,42 @@ Turn local commits into a GitHub stack of pull requests. Each commit becomes its
 
 ## Install
 
+Pick one:
+
 ```bash
-npm install -g bstack
+# Standalone binary for macOS or Linux, installed to ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/wsehl/bstack/main/install.sh | sh
+
+# npm, pnpm, or bun (needs Node.js 20 or newer)
+npm install -g --ignore-scripts bstack
+pnpm add -g --ignore-scripts bstack
+bun add -g --ignore-scripts bstack
 ```
 
-Install and authenticate the [GitHub CLI](https://cli.github.com/), plus the [gh-stack](https://github.com/github/gh-stack) extension:
+bstack drives the [GitHub CLI](https://cli.github.com/) and its [gh-stack](https://github.com/github/gh-stack) extension, so install and authenticate them too:
 
 ```bash
 gh auth login
 gh extension install github/gh-stack
 ```
 
-bstack drives gh-stack to link the PRs into a native GitHub stack, so GitHub shows the stack structure right on the PRs.
+### Update
+
+```bash
+bstack update   # or: bstack upgrade
+```
 
 ## How it works
 
-bstack pushes one remote branch per commit and opens one PR for each. The first PR targets your base branch, and every PR after it targets the branch before it, so the PRs form a stack.
+bstack pushes one remote branch per commit and opens one PR for each. The first PR targets your base branch and every later PR targets the branch before it. gh-stack then links them into a native GitHub stack.
 
-bstack remembers the PRs it opened between runs. When you run `bstack` again, it compares against what it remembers and only touches what changed.
+Your local commits are the source of truth. bstack remembers the PRs it opened, and each run makes GitHub match your branch again: it creates, updates, reorders, or closes PRs as needed and leaves the rest alone. Running it twice changes nothing.
 
 ## Usage
 
 ### Start a stack
 
-Create a branch from `main`, commit one reviewable change per commit, then run `bstack`:
+Create a branch, make one reviewable change per commit, and run `bstack`:
 
 ```bash
 git switch -c feat/user-auth main
@@ -53,11 +65,9 @@ bstack
 + ○ feat(ui): add login page        ──► #103  created
 ```
 
-bstack pushes dedicated remote branches and opens one PR per commit. Add `--dry-run` to preview which PRs would be created, updated, or closed and how the stack would change.
+Add `--dry-run` to preview which PRs would be created, updated, or closed.
 
 ### Add a commit
-
-Commit on top of the stack, then run `bstack` again:
 
 ```bash
 git commit -am "feat(api): add rate limiting"
@@ -69,17 +79,9 @@ bstack
 + ○ feat(api): add rate limiting    ──► #104  created
 ```
 
-Existing PRs are untouched. bstack only opens what's new.
-
 ### Edit a commit
 
-Amend the latest commit, then sync:
-
-```bash
-git commit --amend && bstack
-```
-
-For an older commit, use interactive rebase:
+Amend the latest commit, or use interactive rebase for an older one:
 
 ```bash
 git rebase -i main   # mark the commit as 'edit'
@@ -89,20 +91,15 @@ bstack
 
 ```diff
   ○ feat(db): add user schema       ──► #101  unchanged
-  ○ feat(api): add auth endpoints   ──► #102  unchanged
+  ○ feat(api): add auth endpoints   ──► #102  updated
   ○ feat(ui): add login page        ──► #103  updated
 ```
 
-bstack force-pushes the rewritten branches and updates the affected PRs. Editing an older commit also updates every PR above it.
+bstack force-pushes the rewritten branches. Editing a commit also updates every PR above it.
 
-### Reorder commits
+### Reorder, squash, or drop commits
 
-Reorder commits with interactive rebase, then run `bstack`:
-
-```bash
-git rebase -i main   # swap lines to reorder
-bstack
-```
+Rewrite the branch with `git rebase -i main`, then run `bstack`. PR numbers follow their commits:
 
 ```diff
 - ○ feat(db): add user schema       ──► #101
@@ -112,34 +109,7 @@ bstack
   ○ feat(ui): add login page        ──► #103
 ```
 
-PR numbers follow their commits. bstack rebuilds the stack in the new order and re-points the PR bases.
-
-### Squash a commit
-
-Use `fixup` in interactive rebase to fold a commit into its parent, then sync:
-
-```bash
-git rebase -i main   # mark a commit as 'fixup'
-bstack
-```
-
-```diff
-  ○ feat(db): add user schema       ──► #101  updated
-- ○ fixup! add user schema
-  ○ feat(api): add auth endpoints   ──► #102
-  ○ feat(ui): add login page        ──► #103
-```
-
-The fixup folds into the parent PR. The stack contracts, and the parent PR is updated in place.
-
-### Drop a commit
-
-Delete a commit from the stack with interactive rebase, then sync:
-
-```bash
-git rebase -i main   # mark a commit as 'drop'
-bstack
-```
+A `fixup` folds into its parent PR, and a dropped commit closes its PR:
 
 ```diff
   ○ feat(db): add user schema       ──► #101
@@ -147,13 +117,11 @@ bstack
   ○ feat(ui): add login page        ──► #103  updated
 ```
 
-The dropped PR closes. The PRs above it are rebased onto their new parents.
-
-bstack remembers which branch each stack was synced from. If the commits match a stack synced from a different branch, for example after cherry-picking a commit into a new branch, bstack refuses to close that stack's other PRs unless you pass `--close-omitted`.
+bstack remembers which branch each stack was synced from. If your commits match a stack synced from another branch, for example after cherry-picking into a new branch, bstack won't close that stack's other PRs unless you pass `--close-omitted`.
 
 ### After a PR merges
 
-When a lower PR merges, rebase your branch onto the updated base and sync:
+Rebase onto the updated base and sync:
 
 ```bash
 git rebase main
@@ -164,26 +132,15 @@ bstack
 - ○ feat(db): add user schema       ──► #101  merged
   ○ feat(api): add auth endpoints   ──► #102
   ○ feat(ui): add login page        ──► #103
-+ ○ feat(ui): add logout            ──► #104  created
 ```
 
-The merged PR leaves the stack. Surviving PRs keep their numbers, and new commits append to the stack.
+The merged PR leaves the stack and the rest keep their numbers.
 
-### Checkout an existing stack
-
-Jump to any stack by PR number or URL:
+### Check out a stack
 
 ```bash
 bstack checkout 123
 bstack checkout https://github.com/owner/repo/pull/123
-```
-
-### Upgrade bstack
-
-Self-update through the package manager that installed it (`update` works the same):
-
-```bash
-bstack upgrade
 ```
 
 ## Options
@@ -200,9 +157,9 @@ bstack upgrade
 
 ## Rules
 
-- **One commit = one PR.** Don't push the bstack branches or open PRs manually. bstack owns them.
-- **No merge commits.** When `main` moves, rebase your branch onto it (`git rebase main`) instead of merging.
-- **Run `bstack` after every change.** It's idempotent. Running it twice changes nothing.
+- **One commit, one PR.** bstack owns its branches and PRs. Don't push or edit them by hand.
+- **Rebase, don't merge.** When `main` moves, run `git rebase main` instead of merging it in.
+- **Run `bstack` after every change.** It only touches what changed.
 
 ## References
 
