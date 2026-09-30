@@ -20,9 +20,9 @@ Pick one:
 curl -fsSL https://raw.githubusercontent.com/wsehl/bstack/main/install.sh | sh
 
 # npm, pnpm, or bun (needs Node.js 20 or newer)
-npm install -g --ignore-scripts bstack
-pnpm add -g --ignore-scripts bstack
-bun add -g --ignore-scripts bstack
+npm install -g bstack
+pnpm add -g bstack
+bun add -g bstack
 ```
 
 bstack drives the [GitHub CLI](https://cli.github.com/) and its [gh-stack](https://github.com/github/gh-stack) extension, so install and authenticate them too:
