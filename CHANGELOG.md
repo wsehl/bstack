@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.0](https://github.com/wsehl/bstack/compare/v1.8.0...v1.9.0) (2026-09-30)
+
+
+### Features
+
+* add bstack agent skill ([#46](https://github.com/wsehl/bstack/issues/46)) ([7142d98](https://github.com/wsehl/bstack/commit/7142d985b5bf45edeca7b6b77c877cd97233298b))
+
+
+### Documentation
+
+* clean up readme ([96480a8](https://github.com/wsehl/bstack/commit/96480a81d9c68a53db1c8c9492c6b1ea8b9ef052))
+
 ## [1.8.0](https://github.com/wsehl/bstack/compare/v1.7.0...v1.8.0) (2026-09-29)
 
 
