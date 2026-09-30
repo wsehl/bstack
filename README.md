@@ -38,6 +38,18 @@ gh extension install github/gh-stack
 bstack update   # or: bstack upgrade
 ```
 
+### Agent skill
+
+Install the bstack skill to teach your coding agent how to create and maintain
+commit-based PR stacks:
+
+```bash
+npx skills add https://github.com/wsehl/bstack --skill bstack
+```
+
+The skill installs agent instructions. Install the CLI and its prerequisites
+separately using the commands above.
+
 ## How it works
 
 bstack pushes one remote branch per commit and opens one PR for each. The first PR targets your base branch and every later PR targets the branch before it. gh-stack then links them into a native GitHub stack.
